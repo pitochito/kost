@@ -16,31 +16,68 @@ if (isset($_GET['hapus'])) {
     exit;
 }
 
-// 1. KALKULASI TOTAL PEMASUKAN (Dari Tabel Transaksi)
-$stmt_in = $koneksi->query("SELECT SUM(jumlahtransaksi) FROM table_transaksi");
+// ==========================================
+// LOGIKA FILTER RENTANG WAKTU
+// ==========================================
+$start_date = $_GET['start_date'] ?? '';
+$end_date = $_GET['end_date'] ?? '';
+
+$where_transaksi = "";
+$where_pengeluaran = "";
+$params = [];
+
+if (!empty($start_date) && !empty($end_date)) {
+    $where_transaksi = "WHERE t.tanggaltransaksi BETWEEN ? AND ?";
+    $where_pengeluaran = "WHERE p.tanggalpengeluaran BETWEEN ? AND ?";
+    $params = [$start_date, $end_date];
+}
+
+// 1. KALKULASI TOTAL PEMASUKAN
+$query_in = "SELECT SUM(t.jumlahtransaksi) FROM table_transaksi t $where_transaksi";
+$stmt_in = $koneksi->prepare($query_in);
+$stmt_in->execute($params);
 $total_pemasukan = $stmt_in->fetchColumn() ?: 0;
 
-// 2. KALKULASI TOTAL PENGELUARAN (Dari Tabel Pengeluaran)
-$stmt_out = $koneksi->query("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran");
+// 2. KALKULASI TOTAL PENGELUARAN
+$query_out = "SELECT SUM(p.jumlahpengeluaran) FROM table_pengeluaran p $where_pengeluaran";
+$stmt_out = $koneksi->prepare($query_out);
+$stmt_out->execute($params);
 $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 
 // 3. SALDO BERSIH
 $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
-// 4. AMBIL DATA RIWAYAT PENGELUARAN
-$query_pengeluaran = "
-    SELECT p.*, k.nama_kost 
+// 4. AMBIL RINCIAN PEMASUKAN (TRANSAKSI SEWA)
+$query_list_in = "
+    SELECT t.*, c.namacustomer, k.nomor_kamar, ko.nama_kost
+    FROM table_transaksi t
+    JOIN table_customer c ON t.id_customer = c.id_customer
+    JOIN table_kamar k ON t.id_kamar = k.id_kamar
+    JOIN table_kost ko ON k.id_kost = ko.id_kost
+    $where_transaksi
+    ORDER BY t.tanggaltransaksi DESC, t.id_transaksi DESC
+";
+$stmt_list_in = $koneksi->prepare($query_list_in);
+$stmt_list_in->execute($params);
+$data_pemasukan = $stmt_list_in->fetchAll(PDO::FETCH_ASSOC);
+
+// 5. AMBIL RINCIAN PENGELUARAN
+$query_list_out = "
+    SELECT p.*, ko.nama_kost 
     FROM table_pengeluaran p
-    LEFT JOIN table_kost k ON p.id_kost = k.id_kost
+    LEFT JOIN table_kost ko ON p.id_kost = ko.id_kost
+    $where_pengeluaran
     ORDER BY p.tanggalpengeluaran DESC, p.id_pengeluaran DESC
 ";
-$data_pengeluaran = $koneksi->query($query_pengeluaran)->fetchAll(PDO::FETCH_ASSOC);
+$stmt_list_out = $koneksi->prepare($query_list_out);
+$stmt_list_out->execute($params);
+$data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
     <div>
-        <h2 class="text-2xl font-bold text-gray-800">Modul Keuangan</h2>
-        <p class="text-sm text-gray-500 mt-1">Pantau arus kas, pendapatan sewa, dan pengeluaran operasional.</p>
+        <h2 class="text-2xl font-bold text-gray-800">Buku Besar Keuangan</h2>
+        <p class="text-sm text-gray-500 mt-1">Pantau arus kas, pendapatan sewa, dan pengeluaran operasional Anda.</p>
     </div>
     <a href="form_pengeluaran.php" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors shadow-sm whitespace-nowrap">
         - Catat Pengeluaran
@@ -51,35 +88,106 @@ $data_pengeluaran = $koneksi->query($query_pengeluaran)->fetchAll(PDO::FETCH_ASS
     <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm"><?= $pesan_sukses ?></div>
 <?php endif; ?>
 
-<!-- WIDGET STATISTIK KEUANGAN -->
+<form action="keuangan.php" method="GET" class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-end">
+    <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Mulai Tanggal</label>
+        <input type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>" class="w-full md:w-auto border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none" required>
+    </div>
+    <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai Tanggal</label>
+        <input type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" class="w-full md:w-auto border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none" required>
+    </div>
+    <div class="flex gap-2 w-full md:w-auto">
+        <button type="submit" class="flex-1 md:flex-none bg-black text-white px-6 py-2 rounded font-bold hover:bg-gray-800 transition-colors">Terapkan Filter</button>
+        <?php if(!empty($start_date) || !empty($end_date)): ?>
+            <a href="keuangan.php" class="bg-gray-200 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-300 transition-colors text-center">Reset</a>
+        <?php endif; ?>
+    </div>
+</form>
+
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500">
-        <p class="text-sm font-semibold text-gray-500 mb-1">Total Pemasukan Sewa</p>
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
+        <p class="text-sm font-semibold text-gray-500 mb-1">Total Pemasukan</p>
         <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></p>
     </div>
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500">
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
         <p class="text-sm font-semibold text-gray-500 mb-1">Total Pengeluaran</p>
         <p class="text-2xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
     </div>
-    <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800">
-        <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Kas Bersih</p>
-        <p class="text-2xl font-black text-yellow-500">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
+    <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
+        <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Bersih (Laba/Rugi)</p>
+        <p class="text-2xl font-black <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">
+            Rp <?= number_format($saldo_bersih, 0, ',', '.') ?>
+        </p>
     </div>
 </div>
 
-<!-- TABEL RIWAYAT PENGELUARAN -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center">
+        <h3 class="font-bold text-green-800 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Riwayat Pemasukan Sewa
+        </h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse min-w-[900px]">
+            <thead class="bg-white border-b border-gray-200">
+                <tr>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Tanggal Transaksi</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Customer</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Properti & Rincian</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-right">Nominal Masuk (Rp)</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-center">Invoice</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <?php foreach ($data_pemasukan as $in) : ?>
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="py-3 px-6 text-sm font-semibold text-gray-700">
+                        <?= date('d M Y', strtotime($in['tanggaltransaksi'])) ?>
+                    </td>
+                    <td class="py-3 px-6 text-sm font-bold text-gray-800">
+                        <?= htmlspecialchars($in['namacustomer']) ?>
+                    </td>
+                    <td class="py-3 px-6 text-sm">
+                        <p class="font-semibold text-gray-800"><?= htmlspecialchars($in['nama_kost']) ?> - Kamar <?= htmlspecialchars($in['nomor_kamar']) ?></p>
+                        <p class="text-xs text-gray-500"><?= htmlspecialchars($in['namatransaksi']) ?> (Diskon: Rp <?= number_format($in['diskontransaksi'], 0, ',', '.') ?>)</p>
+                    </td>
+                    <td class="py-3 px-6 text-sm font-black text-green-600 text-right">
+                        + <?= number_format($in['jumlahtransaksi'], 0, ',', '.') ?>
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="inline-block bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded text-xs font-bold transition-colors">
+                            Lihat / Cetak
+                        </a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                <?php if(empty($data_pemasukan)): ?>
+                <tr>
+                    <td colspan="5" class="text-center py-8 text-gray-500">Tidak ada pemasukan pada rentang waktu ini.</td>
+                </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <h3 class="font-bold text-gray-700">Riwayat Pengeluaran Operasional</h3>
+    <div class="px-6 py-4 border-b border-gray-200 bg-red-50">
+        <h3 class="font-bold text-red-800 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+            Riwayat Pengeluaran Operasional
+        </h3>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse min-w-[800px]">
             <thead class="bg-white border-b border-gray-200">
                 <tr>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Tanggal</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Tanggal Pengeluaran</th>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600">Lokasi Properti</th>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600">Kategori & Rincian</th>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-right">Nominal (Rp)</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-right">Nominal Keluar (Rp)</th>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600 text-center">Tindakan</th>
                 </tr>
             </thead>
@@ -90,7 +198,7 @@ $data_pengeluaran = $koneksi->query($query_pengeluaran)->fetchAll(PDO::FETCH_ASS
                         <?= date('d M Y', strtotime($out['tanggalpengeluaran'])) ?>
                     </td>
                     <td class="py-3 px-6 text-sm font-bold text-gray-800">
-                        <?= htmlspecialchars($out['nama_kost'] ?? 'Semua/Pusat') ?>
+                        <?= htmlspecialchars($out['nama_kost'] ?? 'Semua / Biaya Pusat') ?>
                     </td>
                     <td class="py-3 px-6 text-sm">
                         <span class="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs font-bold mr-2"><?= htmlspecialchars($out['kategoripengeluaran']) ?></span>
@@ -108,7 +216,7 @@ $data_pengeluaran = $koneksi->query($query_pengeluaran)->fetchAll(PDO::FETCH_ASS
                 
                 <?php if(empty($data_pengeluaran)): ?>
                 <tr>
-                    <td colspan="5" class="text-center py-8 text-gray-500">Belum ada catatan pengeluaran.</td>
+                    <td colspan="5" class="text-center py-8 text-gray-500">Tidak ada catatan pengeluaran pada rentang waktu ini.</td>
                 </tr>
                 <?php endif; ?>
             </tbody>
