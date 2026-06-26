@@ -49,10 +49,6 @@ $kamar_kosong = $koneksi->query("SELECT COUNT(*) FROM table_kamar WHERE LOWER(st
 
 
 // 4. QUERY PERINGATAN JATUH TEMPO MENDATANG (WARNING)
-// Kriteria:
-// Bulanan (selisih > 20 hari): Peringatan H-7
-// Mingguan (selisih 7-20 hari): Peringatan H-3
-// Harian (selisih < 7 hari): Peringatan H-1
 $query_warning = "
     SELECT 
         c.id_customer, c.namacustomer, c.nohpcustomer,
@@ -76,6 +72,15 @@ $query_warning = "
 ";
 $stmt_warning = $koneksi->query($query_warning);
 $data_warning = $stmt_warning->fetchAll(PDO::FETCH_ASSOC);
+
+// 5. KALKULASI KEUANGAN (PEMASUKAN & PENGELUARAN)
+$stmt_in = $koneksi->query("SELECT SUM(jumlahtransaksi) FROM table_transaksi");
+$total_pemasukan = $stmt_in->fetchColumn() ?: 0;
+
+$stmt_out = $koneksi->query("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran");
+$total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
+
+$saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
 ?>
 
@@ -103,9 +108,6 @@ $data_warning = $stmt_warning->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
-<!-- ==========================================
-     WIDGET PERINGATAN JATUH TEMPO
-=========================================== -->
 <?php if (!empty($data_warning)): ?>
 <div class="mb-10 bg-red-50 border border-red-200 rounded-xl overflow-hidden shadow-sm">
     <div class="bg-red-500 px-6 py-4 flex items-center gap-3">
@@ -156,12 +158,25 @@ $data_warning = $stmt_warning->fetchAll(PDO::FETCH_ASSOC);
 </div>
 <?php endif; ?>
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-400 mt-6 border-dashed">
-    <svg class="mx-auto h-12 w-12 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-    <h3 class="text-lg font-bold text-gray-600 mb-1">Modul Keuangan & Operasional</h3>
-    <p class="text-sm">Tabel statistik beban biaya (PDAM, Listrik, Internet) dan pemasukan sewa akan muncul di sini setelah tabel database disiapkan.</p>
+<div class="mt-8 mb-6">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-gray-800">Ringkasan Arus Kas</h2>
+        <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold">Buka Modul Keuangan &rarr;</a>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
+            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pemasukan</p>
+            <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></p>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
+            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pengeluaran</p>
+            <p class="text-2xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
+        </div>
+        <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
+            <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Bersih Saat Ini</p>
+            <p class="text-2xl font-black text-yellow-500">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
+        </div>
+    </div>
 </div>
 
 <?php require 'footer.php'; ?>

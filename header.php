@@ -34,7 +34,7 @@ if (!isset($_SESSION['user_id'])) {
                 <li><a href="index.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Dasbor Utama</a></li>
                 <li><a href="data_kost.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Kost & Kamar</a></li>
                 <li><a href="customer.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Data Customer</a></li>
-                <li><a href="#" class="block px-6 py-3 text-gray-500 cursor-not-allowed">Keuangan (Segera)</a></li>
+                <li><a href="keuangan.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Keuangan</a></li>
                 <li><a href="user.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Manajemen User</a></li>
                 <li><a href="ubah_password.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Ubah Password</a></li>
             </ul>
