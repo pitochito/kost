@@ -15,12 +15,19 @@ if (!isset($_SESSION['user_id'])) {
     <title>Sistem Manajemen - Kost Sun</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex h-screen overflow-hidden text-gray-800 font-sans">
+<body class="bg-gray-100 flex h-screen overflow-hidden text-gray-800 font-sans relative">
 
-    <aside class="w-64 bg-black text-white flex flex-col hidden md:flex shadow-xl z-20">
-        <div class="p-5 flex items-center gap-3 border-b border-gray-800">
-            <img src="logo.jpg" alt="Logo" class="h-10 object-contain rounded">
-            <span class="text-yellow-500 font-bold text-xl tracking-wider">KOST SUN</span>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden transition-opacity"></div>
+
+    <aside id="sidebar" class="w-64 bg-black text-white flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-30 transition-transform duration-300 ease-in-out shadow-xl">
+        <div class="p-5 flex items-center justify-between border-b border-gray-800">
+            <div class="flex items-center gap-3">
+                <img src="logo.jpg" alt="Logo" class="h-10 object-contain rounded">
+                <span class="text-yellow-500 font-bold text-xl tracking-wider">KOST SUN</span>
+            </div>
+            <button id="close-sidebar-btn" class="md:hidden text-gray-400 hover:text-white focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1 text-sm font-medium">
@@ -39,13 +46,19 @@ if (!isset($_SESSION['user_id'])) {
         </div>
     </aside>
 
-    <div class="flex-1 flex flex-col h-screen overflow-hidden">
+    <div class="flex-1 flex flex-col h-screen overflow-hidden w-full relative">
         
-        <header class="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
-            <h2 class="font-bold text-lg text-gray-700">Workspace</h2>
-            <div class="text-sm font-bold text-yellow-600 bg-yellow-50 px-4 py-1.5 rounded-full border border-yellow-100" id="live-clock">
+        <header class="bg-white shadow-sm border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center z-10">
+            <div class="flex items-center gap-3">
+                <button id="open-sidebar-btn" class="md:hidden text-gray-600 hover:text-black focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <h2 class="font-bold text-lg text-gray-700 truncate">Workspace</h2>
+            </div>
+            
+            <div class="text-xs md:text-sm font-bold text-yellow-600 bg-yellow-50 px-3 md:px-4 py-1.5 rounded-full border border-yellow-100 truncate" id="live-clock">
                 Memuat waktu...
             </div>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-6 lg:p-8 relative">
+        <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative">
