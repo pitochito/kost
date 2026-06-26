@@ -125,7 +125,8 @@ $data_customer = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php endif; ?>
                 </td>
                 <td class="py-3 px-4 flex flex-wrap justify-center gap-2">
-                    <!-- Tombol Perpanjang HANYA untuk customer Aktif -->
+                    <a href="profil_customer.php?id=<?= $cust['id_customer'] ?>" class="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded text-xs font-bold transition-colors">Profil</a>
+
                     <?php if (strtolower($cust['statuscustomer']) == 'aktif'): ?>
                         <a href="perpanjang.php?id=<?= $cust['id_customer'] ?>" class="bg-black text-yellow-500 hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-bold transition-colors">Perpanjang</a>
                     <?php endif; ?>
