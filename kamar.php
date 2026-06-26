@@ -69,8 +69,8 @@ $data_kamar = $stmt_kamar->fetchAll(PDO::FETCH_ASSOC);
             <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm"><?= $pesan_sukses ?></div>
         <?php endif; ?>
 
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <table class="w-full text-left border-collapse">
+       <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[700px]">
                 <thead class="bg-gray-100 border-b border-gray-200">
                     <tr>
                         <th class="py-3 px-4 text-sm font-bold text-gray-600">No. Kamar</th>
