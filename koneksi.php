@@ -17,8 +17,9 @@ try {
     // Pesan sukses sementara untuk pengujian
     //echo "Koneksi berhasil.";
 
+//  BARU
 } catch(PDOException $e) {
-    // Tampilkan error jika koneksi gagal
-    echo "Error koneksi: " . $e->getMessage();
+    error_log("DB Error: " . $e->getMessage()); // dicatat ke log server, tidak tampil ke user
+    die("Koneksi database gagal. Silakan coba beberapa saat lagi.");
 }
 ?>

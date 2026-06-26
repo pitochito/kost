@@ -1,6 +1,6 @@
 <?php
 require 'koneksi.php';
-
+require 'header.php';
 // Pastikan selalu ada id_kost, jika tidak ada, kembalikan ke dashboard
 if (!isset($_GET['id_kost'])) {
     header("Location: index.php");
@@ -11,8 +11,8 @@ $id_kost = $_GET['id_kost'];
 $pesan_sukses = '';
 
 // PROSES HAPUS DATA KAMAR
-if (isset($_GET['hapus'])) {
-    $id_hapus = $_GET['hapus'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['hapus'])) {
+    $id_hapus = $_POST['hapus'];
     $stmt = $koneksi->prepare("DELETE FROM table_kamar WHERE id_kamar = ? AND id_kost = ?");
     $stmt->execute([$id_hapus, $id_kost]);
     header("Location: kamar.php?id_kost=$id_kost&pesan=sukses_hapus");
@@ -33,28 +33,6 @@ $stmt_kamar = $koneksi->prepare("SELECT * FROM table_kamar WHERE id_kost = ? ORD
 $stmt_kamar->execute([$id_kost]);
 $data_kamar = $stmt_kamar->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Kamar - Kost Sun</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
-
-    <header class="bg-black shadow-md">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <img src="logo.jpg" alt="Logo Kost Sun" class="h-12 object-contain rounded">
-                <h1 class="text-2xl font-bold text-yellow-500 tracking-wide">KOST SUN</h1>
-            </div>
-        </div>
-    </header>
-
-    <main class="max-w-7xl mx-auto px-4 py-8 w-full flex-1">
-        
         <div class="mb-6">
             <a href="index.php" class="text-sm font-semibold text-gray-500 hover:text-black mb-2 inline-block">&larr; Kembali ke Dashboard</a>
             <div class="flex justify-between items-center mt-2">
@@ -102,7 +80,16 @@ $data_kamar = $stmt_kamar->fetchAll(PDO::FETCH_ASSOC);
                         </td>
                         <td class="py-3 px-4 flex justify-center gap-2 mt-1">
                             <a href="form_kamar.php?id_kost=<?= $id_kost ?>&edit=<?= $kamar['id_kamar'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
-                            <a href="kamar.php?id_kost=<?= $id_kost ?>&hapus=<?= $kamar['id_kamar'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus kamar ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
+                            <!-- ✅ BARU -->
+                            <form method="POST" action="kamar.php?id_kost=<?= $id_kost ?>" 
+                                onsubmit="return confirm('Apakah Anda yakin ingin menghapus kamar ini?');" 
+                                style="display:inline;">
+                                <input type="hidden" name="hapus" value="<?= $kamar['id_kamar'] ?>">
+                                <button type="submit" 
+                                        class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">
+                                    Hapus
+                                </button>
+                            </form>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -115,11 +102,4 @@ $data_kamar = $stmt_kamar->fetchAll(PDO::FETCH_ASSOC);
                 </tbody>
             </table>
         </div>
-    </main>
-
-    <footer class="border-t border-gray-200 bg-white py-6 mt-8 text-center text-sm text-gray-500 w-full">
-        <p>&copy; <?= date('Y') ?> Kost Sun Management. All rights reserved.</p>
-    </footer>
-
-</body>
-</html>
+<?php require 'footer.php'; ?>
