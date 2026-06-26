@@ -26,7 +26,7 @@ if (isset($_GET['hapus'])) {
     } else {
         $stmt = $koneksi->prepare("DELETE FROM table_kost WHERE id_kost = ?");
         $stmt->execute([$id_hapus]);
-        header("Location: index.php?pesan=sukses_hapus");
+        header("Location: data_kost.php?pesan=sukses_hapus");
         exit;
     }
 }
@@ -87,7 +87,7 @@ require 'header.php';
                     <td class="py-3 px-4 flex justify-center gap-2">
                         <a href="kamar.php?id_kost=<?= $kost['id_kost'] ?>" class="bg-black text-white hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Kelola Kamar</a>
                         <a href="form_kost.php?edit=<?= $kost['id_kost'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
-                        <a href="index.php?hapus=<?= $kost['id_kost'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
+                        <a href="data_kost.php?hapus=<?= $kost['id_kost'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
