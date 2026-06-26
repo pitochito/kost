@@ -124,8 +124,14 @@ $data_customer = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">Tidak Aktif</span>
                     <?php endif; ?>
                 </td>
-                <td class="py-3 px-4 flex justify-center gap-2">
-                    <a href="form_customer.php?edit=<?= $cust['id_customer'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit & Detail</a>
+                <td class="py-3 px-4 flex flex-wrap justify-center gap-2">
+                    <!-- Tombol Perpanjang HANYA untuk customer Aktif -->
+                    <?php if (strtolower($cust['statuscustomer']) == 'aktif'): ?>
+                        <a href="perpanjang.php?id=<?= $cust['id_customer'] ?>" class="bg-black text-yellow-500 hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-bold transition-colors">Perpanjang</a>
+                    <?php endif; ?>
+                    
+                    <a href="form_customer.php?edit=<?= $cust['id_customer'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
+                    
                     <a href="customer.php?hapus=<?= $cust['id_customer'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus customer ini? Semua foto terkait juga akan terhapus.');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
                 </td>
             </tr>
