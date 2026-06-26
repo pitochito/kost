@@ -1,102 +1,57 @@
 <?php
-// ==========================================
-// BAGIAN 1: LOGIKA SISTEM & KEAMANAN
-// ==========================================
-session_start();
 require 'koneksi.php';
+require 'header.php';
 
-// Proteksi Login: Jika belum login, tendang ke login.php
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
-}
+// 1. Ambil Nama Username yang sedang login
+$stmt_user = $koneksi->prepare("SELECT username FROM table_user WHERE id = ?");
+$stmt_user->execute([$_SESSION['user_id']]);
+$user_aktif = $stmt_user->fetchColumn();
 
-$pesan_error = '';
-$pesan_sukses = '';
+// 2. Kalkulasi Statistik Properti
+$total_kost = $koneksi->query("SELECT COUNT(*) FROM table_kost")->fetchColumn();
+$total_kamar = $koneksi->query("SELECT COUNT(*) FROM table_kamar")->fetchColumn();
+$kamar_isi = $koneksi->query("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) = 'isi' OR LOWER(status_kamar) = 'terisi'")->fetchColumn();
+$kamar_kosong = $koneksi->query("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) = 'kosong'")->fetchColumn();
 
-// Proses Hapus Data Kost
-if (isset($_GET['hapus'])) {
-    $id_hapus = $_GET['hapus'];
-    $cek_kamar = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE id_kost = ?");
-    $cek_kamar->execute([$id_hapus]);
-    $jumlah = $cek_kamar->fetchColumn();
-
-    if ($jumlah > 0) {
-        $pesan_error = "Gagal menghapus: Kost ini masih memiliki $jumlah kamar aktif. Hapus kamar terlebih dahulu.";
-    } else {
-        $stmt = $koneksi->prepare("DELETE FROM table_kost WHERE id_kost = ?");
-        $stmt->execute([$id_hapus]);
-        header("Location: index.php?pesan=sukses_hapus");
-        exit;
-    }
-}
-
-if (isset($_GET['pesan']) && $_GET['pesan'] == 'sukses_hapus') {
-    $pesan_sukses = "Data kost berhasil dihapus.";
-}
-
-// Ambil Semua Data Kost
-$query = "SELECT * FROM table_kost ORDER BY id_kost DESC";
-$stmt = $koneksi->prepare($query);
-$stmt->execute();
-$data_kost = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// ==========================================
-// BAGIAN 2: MENAMPILKAN VISUAL (HTML)
-// ==========================================
-
-// Panggil bagian atas web (Navbar & Logo)
-require 'header.php'; 
+// Nilai keuangan dikosongkan sementara sampai tabelnya dibuat
+$total_pengeluaran = 0; 
 ?>
 
-<main class="max-w-7xl mx-auto px-4 py-8 w-full flex-1">
+<div class="mb-8">
+    <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Selamat datang, <span class="text-yellow-600 capitalize"><?= htmlspecialchars($user_aktif) ?></span>!</h1>
+    <p class="text-gray-500 mt-2 text-sm">Berikut adalah ringkasan performa dan statistik properti Kost Sun Anda saat ini.</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-bold text-gray-700">Daftar Lokasi Kost</h2>
-        <a href="form_kost.php" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded transition-colors">
-            + Tambah Kost Baru
-        </a>
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+        <p class="text-sm font-semibold text-gray-500 mb-1">Total Lokasi Kost</p>
+        <p class="text-3xl font-black text-gray-800"><?= $total_kost ?> <span class="text-sm font-medium text-gray-400">Properti</span></p>
     </div>
 
-    <?php if ($pesan_error): ?>
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded shadow-sm"><?= $pesan_error ?></div>
-    <?php endif; ?>
-    <?php if ($pesan_sukses): ?>
-        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm"><?= $pesan_sukses ?></div>
-    <?php endif; ?>
-
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-    <table class="w-full text-left border-collapse min-w-[600px]">
-            <thead class="bg-gray-100 border-b border-gray-200">
-                <tr>
-                    <th class="py-3 px-4 text-sm font-bold text-gray-600">Nama Kost</th>
-                    <th class="py-3 px-4 text-sm font-bold text-gray-600">Alamat</th>
-                    <th class="py-3 px-4 text-sm font-bold text-gray-600 text-center">Tindakan</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                <?php foreach ($data_kost as $kost) : ?>
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="py-3 px-4">
-                        <p class="font-bold text-gray-800"><?= htmlspecialchars($kost['nama_kost']) ?></p>
-                        <p class="text-xs text-gray-500"><?= htmlspecialchars($kost['kota_kost']) ?></p>
-                    </td>
-                    <td class="py-3 px-4 text-sm text-gray-600">
-                        <?= htmlspecialchars($kost['alamat_kost']) ?>
-                    </td>
-                    <td class="py-3 px-4 flex justify-center gap-2">
-                        <a href="kamar.php?id_kost=<?= $kost['id_kost'] ?>" class="bg-black text-white hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Kelola Kamar</a>
-                        <a href="form_kost.php?edit=<?= $kost['id_kost'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
-                        <a href="index.php?hapus=<?= $kost['id_kost'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+        <p class="text-sm font-semibold text-gray-500 mb-1">Total Keseluruhan Kamar</p>
+        <p class="text-3xl font-black text-gray-800"><?= $total_kamar ?> <span class="text-sm font-medium text-gray-400">Pintu</span></p>
     </div>
-</main>
 
-<?php 
-// Panggil bagian bawah web (Copyright)
-require 'footer.php'; 
-?>
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
+        <p class="text-sm font-semibold text-gray-500 mb-1">Kamar Terisi</p>
+        <p class="text-3xl font-black text-green-600"><?= $kamar_isi ?> <span class="text-sm font-medium text-green-400">Pintu</span></p>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
+        <p class="text-sm font-semibold text-gray-500 mb-1">Kamar Kosong</p>
+        <p class="text-3xl font-black text-red-600"><?= $kamar_kosong ?> <span class="text-sm font-medium text-red-400">Pintu</span></p>
+    </div>
+
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-400 mt-12 border-dashed">
+    <svg class="mx-auto h-12 w-12 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <h3 class="text-lg font-bold text-gray-600 mb-1">Modul Keuangan & Operasional</h3>
+    <p class="text-sm">Tabel statistik beban biaya (PDAM, Listrik, Internet) dan pemasukan sewa akan muncul di sini setelah tabel database disiapkan.</p>
+</div>
+
+<?php require 'footer.php'; ?>

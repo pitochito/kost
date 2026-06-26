@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="submit" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded-md transition-colors shadow-sm">
                         <?= $mode_edit ? 'Simpan Perubahan' : 'Simpan Kost Baru' ?>
                     </button>
-                    <a href="index.php" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-md text-center transition-colors shadow-sm">Batal</a>
+                    <a href="data_kost.php" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-md text-center transition-colors shadow-sm">Batal</a>
                 </div>
             </form>
         </div>
