@@ -35,7 +35,7 @@ if (!isset($_SESSION['user_id'])) {
                 <li><a href="data_kost.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Kost & Kamar</a></li>
                 <li><a href="#" class="block px-6 py-3 text-gray-500 cursor-not-allowed">Data Customer (Segera)</a></li>
                 <li><a href="#" class="block px-6 py-3 text-gray-500 cursor-not-allowed">Keuangan (Segera)</a></li>
-                <li><a href="#" class="block px-6 py-3 text-gray-500 cursor-not-allowed">Manajemen User (Segera)</a></li>
+                <li><a href="user.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Manajemen User</a></li>
                 <li><a href="ubah_password.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Ubah Password</a></li>
             </ul>
         </nav>
