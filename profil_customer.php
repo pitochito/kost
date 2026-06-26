@@ -111,9 +111,9 @@ if (!$cust) {
                 <div>
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-1 mb-3">Foto KTP</h3>
                     <div class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center min-h-[120px]">
-                        <?php if (!empty($cust['fotoktpcustomer']) && file_exists('ktpcust/' . $cust['fotoktpcustomer'])): ?>
-                            <a href="ktpcust/<?= $cust['fotoktpcustomer'] ?>" target="_blank" title="Klik untuk memperbesar">
-                                <img src="ktpcust/<?= $cust['fotoktpcustomer'] ?>" alt="KTP" class="w-full h-auto object-cover hover:opacity-90 transition-opacity">
+                        <?php if (!empty($cust['fotoktpcustomer']) && file_exists('uploads/' . $cust['fotoktpcustomer'])): ?>
+                            <a href="uploads/<?= $cust['fotoktpcustomer'] ?>" target="_blank" title="Klik untuk memperbesar">
+                                <img src="uploads/<?= $cust['fotoktpcustomer'] ?>" alt="KTP" class="w-full h-auto object-cover hover:opacity-90 transition-opacity">
                             </a>
                         <?php else: ?>
                             <span class="text-xs text-gray-400 italic p-4 text-center">Foto KTP belum diunggah atau file tidak ditemukan</span>
@@ -124,9 +124,9 @@ if (!$cust) {
                 <div>
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-1 mb-3">Foto Selfie</h3>
                     <div class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center min-h-[120px]">
-                        <?php if (!empty($cust['fotoselfiecustomer']) && file_exists('selfiecust/' . $cust['fotoselfiecustomer'])): ?>
-                            <a href="selfiecust/<?= $cust['fotoselfiecustomer'] ?>" target="_blank" title="Klik untuk memperbesar">
-                                <img src="selfiecust/<?= $cust['fotoselfiecustomer'] ?>" alt="Selfie" class="w-full h-auto object-cover hover:opacity-90 transition-opacity">
+                        <?php if (!empty($cust['fotoselfiecustomer']) && file_exists('uploads/' . $cust['fotoselfiecustomer'])): ?>
+                            <a href="uploads/<?= $cust['fotoselfiecustomer'] ?>" target="_blank" title="Klik untuk memperbesar">
+                                <img src="uploads/<?= $cust['fotoselfiecustomer'] ?>" alt="Selfie" class="w-full h-auto object-cover hover:opacity-90 transition-opacity">
                             </a>
                         <?php else: ?>
                             <span class="text-xs text-gray-400 italic p-4 text-center">Foto Selfie belum diunggah</span>

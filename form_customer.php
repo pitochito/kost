@@ -43,7 +43,6 @@ if (isset($_GET['edit'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_cust_post = $_POST['id_customer'] ?? '';
     
-    // Data Customer
     $nik = trim($_POST['nikcustomer']);
     $nama = trim($_POST['namacustomer']);
     $kota = trim($_POST['kotaasalcustomer']);
@@ -51,52 +50,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nohp = trim($_POST['nohpcustomer']);
     $nama_darurat = trim($_POST['namakontakdarurat']);
     $kontak_darurat = trim($_POST['kontakdarurat']);
-    
-    // Jika Edit, ambil status dari form. Jika Tambah, set mutlak Aktif.
     $status = $mode_edit ? $_POST['statuscustomer'] : 'Aktif';
 
     if (empty($nik) || empty($nama)) {
         $pesan_error = "NIK dan Nama Customer wajib diisi!";
     } else {
-        // PROSES UPLOAD
+        
+        // PENGAMANAN FOLDER: Buat folder uploads jika belum ada (untuk testing lokal)
+        if (!is_dir('uploads')) {
+            mkdir('uploads', 0777, true);
+        }
+
+        // PROSES UPLOAD KE FOLDER "uploads" (Sesuai Railway Volume)
         $nama_ktp = $_POST['fotoktpcustomer_lama'] ?? '';
         if (isset($_FILES['fotoktpcustomer']) && $_FILES['fotoktpcustomer']['error'] === UPLOAD_ERR_OK) {
             $ext_ktp = pathinfo($_FILES['fotoktpcustomer']['name'], PATHINFO_EXTENSION);
             $nama_ktp = 'KTP_' . time() . '_' . rand(100,999) . '.' . $ext_ktp;
-            move_uploaded_file($_FILES['fotoktpcustomer']['tmp_name'], 'ktpcust/' . $nama_ktp);
-            if ($mode_edit && !empty($_POST['fotoktpcustomer_lama']) && file_exists('ktpcust/' . $_POST['fotoktpcustomer_lama'])) { unlink('ktpcust/' . $_POST['fotoktpcustomer_lama']); }
+            move_uploaded_file($_FILES['fotoktpcustomer']['tmp_name'], 'uploads/' . $nama_ktp);
+            // Hapus file lama di folder uploads
+            if ($mode_edit && !empty($_POST['fotoktpcustomer_lama']) && file_exists('uploads/' . $_POST['fotoktpcustomer_lama'])) { 
+                unlink('uploads/' . $_POST['fotoktpcustomer_lama']); 
+            }
         }
 
         $nama_selfie = $_POST['fotoselfiecustomer_lama'] ?? '';
         if (isset($_FILES['fotoselfiecustomer']) && $_FILES['fotoselfiecustomer']['error'] === UPLOAD_ERR_OK) {
             $ext_selfie = pathinfo($_FILES['fotoselfiecustomer']['name'], PATHINFO_EXTENSION);
             $nama_selfie = 'SELFIE_' . time() . '_' . rand(100,999) . '.' . $ext_selfie;
-            move_uploaded_file($_FILES['fotoselfiecustomer']['tmp_name'], 'selfiecust/' . $nama_selfie);
-            if ($mode_edit && !empty($_POST['fotoselfiecustomer_lama']) && file_exists('selfiecust/' . $_POST['fotoselfiecustomer_lama'])) { unlink('selfiecust/' . $_POST['fotoselfiecustomer_lama']); }
+            move_uploaded_file($_FILES['fotoselfiecustomer']['tmp_name'], 'uploads/' . $nama_selfie);
+            // Hapus file lama di folder uploads
+            if ($mode_edit && !empty($_POST['fotoselfiecustomer_lama']) && file_exists('uploads/' . $_POST['fotoselfiecustomer_lama'])) { 
+                unlink('uploads/' . $_POST['fotoselfiecustomer_lama']); 
+            }
         }
 
         try {
             $koneksi->beginTransaction();
 
             if (!empty($id_cust_post)) {
-                // UPDATE CUSTOMER SAJA
                 $stmt = $koneksi->prepare("UPDATE table_customer SET nikcustomer=?, namacustomer=?, kotaasalcustomer=?, alamatcustomer=?, nohpcustomer=?, namakontakdarurat=?, kontakdarurat=?, statuscustomer=?, fotoktpcustomer=?, fotoselfiecustomer=? WHERE id_customer=?");
                 $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_cust_post]);
             } else {
-                // 1. INSERT CUSTOMER BARU
                 $stmt = $koneksi->prepare("INSERT INTO table_customer (nikcustomer, namacustomer, kotaasalcustomer, alamatcustomer, nohpcustomer, namakontakdarurat, kontakdarurat, statuscustomer, fotoktpcustomer, fotoselfiecustomer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie]);
                 $new_customer_id = $koneksi->lastInsertId();
 
-                // 2. INSERT TRANSAKSI SEWA & KALKULASI TANGGAL VIA PHP (Lebih akurat)
                 $id_kamar = $_POST['id_kamar'];
                 $mulaisewa = $_POST['mulaisewa'];
                 $jenissewa = $_POST['jenissewa'];
                 $durasi = (int)$_POST['durasi'];
                 $diskon = (int)str_replace('.', '', $_POST['diskontransaksi']);
-                $total_harga = (int)str_replace('.', '', $_POST['total_harga_hidden']); // Dari hidden input
+                $total_harga = (int)str_replace('.', '', $_POST['total_harga_hidden']); 
                 
-                // Kalkulasi PHP untuk Tanggal Habis Sewa
                 $date_obj = new DateTime($mulaisewa);
                 if ($jenissewa == 'Bulanan') { $date_obj->modify("+$durasi month"); }
                 elseif ($jenissewa == 'Mingguan') { $days = $durasi * 7; $date_obj->modify("+$days days"); }
@@ -106,7 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?)");
                 $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $id_kamar, $new_customer_id]);
 
-                // 3. UPDATE STATUS KAMAR JADI TERISI
                 $stmt_kamar_update = $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?");
                 $stmt_kamar_update->execute([$id_kamar]);
             }
@@ -189,11 +193,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Upload KTP</label>
                             <input type="file" name="fotoktpcustomer" accept="image/*" class="text-xs text-gray-500 w-full">
                             <input type="hidden" name="fotoktpcustomer_lama" value="<?= htmlspecialchars($edit_data['fotoktpcustomer']) ?>">
+                            <?php if($mode_edit && !empty($edit_data['fotoktpcustomer'])): ?>
+                                <a href="uploads/<?= $edit_data['fotoktpcustomer'] ?>" target="_blank" class="text-xs text-blue-600 underline mt-2 block">Lihat KTP Saat Ini</a>
+                            <?php endif; ?>
                         </div>
                         <div class="bg-gray-50 p-3 border border-gray-200 rounded">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Upload Selfie</label>
                             <input type="file" name="fotoselfiecustomer" accept="image/*" class="text-xs text-gray-500 w-full">
                             <input type="hidden" name="fotoselfiecustomer_lama" value="<?= htmlspecialchars($edit_data['fotoselfiecustomer']) ?>">
+                            <?php if($mode_edit && !empty($edit_data['fotoselfiecustomer'])): ?>
+                                <a href="uploads/<?= $edit_data['fotoselfiecustomer'] ?>" target="_blank" class="text-xs text-blue-600 underline mt-2 block">Lihat Selfie Saat Ini</a>
+                            <?php endif; ?>
                         </div>
                     </div>
                     

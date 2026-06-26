@@ -16,12 +16,12 @@ if (isset($_GET['hapus'])) {
 
     $stmt_hapus = $koneksi->prepare("DELETE FROM table_customer WHERE id_customer = ?");
     if ($stmt_hapus->execute([$id_hapus])) {
-        // Hapus file fisik jika ada
-        if ($foto['fotoktpcustomer'] && file_exists('ktpcust/' . $foto['fotoktpcustomer'])) {
-            unlink('ktpcust/' . $foto['fotoktpcustomer']);
+        // Hapus file fisik jika ada di folder uploads
+        if ($foto['fotoktpcustomer'] && file_exists('uploads/' . $foto['fotoktpcustomer'])) {
+            unlink('uploads/' . $foto['fotoktpcustomer']);
         }
-        if ($foto['fotoselfiecustomer'] && file_exists('selfiecust/' . $foto['fotoselfiecustomer'])) {
-            unlink('selfiecust/' . $foto['fotoselfiecustomer']);
+        if ($foto['fotoselfiecustomer'] && file_exists('uploads/' . $foto['fotoselfiecustomer'])) {
+            unlink('uploads/' . $foto['fotoselfiecustomer']);
         }
         header("Location: customer.php?pesan=sukses_hapus");
         exit;
