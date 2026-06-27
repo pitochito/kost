@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $diskon = (int)str_replace('.', '', $_POST['diskontransaksi']);
     $total_harga = (int)str_replace('.', '', $_POST['total_harga_hidden']);
     
-    // TANGGAL DIKUNCI DARI PHP AGAR TIDAK BISA DIAKALI INSPECT ELEMENT HTML
+    // TANGKAL MANIPULASI TANGGAL
     $mulaisewa = $data_sewa['tgl_mulai_baru']; 
     
     $date_obj = new DateTime($mulaisewa);
@@ -49,19 +49,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($jenissewa == 'Harian') { $date_obj->modify("+$durasi days"); }
     $habissewa = $date_obj->format('Y-m-d');
 
+    // Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = $_SESSION['user_id'];
+
     try {
         $koneksi->beginTransaction();
 
-        // 1. Catat Transaksi Baru
-        $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer) VALUES (CURDATE(), ?, ?, 'Perpanjangan Sewa', ?, ?, ?, ?)");
-        $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $data_sewa['id_kamar'], $id_customer]);
+        // 1. Catat Transaksi Baru (Mencatat id_user pemroses)
+        $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id_user) VALUES (CURDATE(), ?, ?, 'Perpanjangan Sewa', ?, ?, ?, ?, ?)");
+        $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $data_sewa['id_kamar'], $id_customer, $id_user_aktif]);
 
-        // 2. Pastikan Customer Aktif & Kamar Terisi (Berjaga-jaga jika perpanjangan dilakukan SETELAH jatuh tempo)
+        // 2. Pastikan Customer Aktif & Kamar Terisi
         $koneksi->prepare("UPDATE table_customer SET statuscustomer = 'Aktif' WHERE id_customer = ?")->execute([$id_customer]);
         $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?")->execute([$data_sewa['id_kamar']]);
 
         $koneksi->commit();
-        header("Location: index.php"); // Kembali ke dasbor
+        header("Location: index.php"); 
         exit;
 
     } catch (Exception $e) {
@@ -94,7 +97,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="text-right">
                     <p class="text-xs text-gray-500 uppercase font-bold tracking-wider">Tanggal Lanjut Sewa</p>
-                    <!-- TANGGAL DIKUNCI (READONLY) AGAR TIDAK BIAS -->
                     <p class="font-black text-xl text-yellow-600 bg-yellow-50 px-3 py-1 rounded border border-yellow-200 inline-block mt-1">
                         <?= date('d M Y', strtotime($data_sewa['tgl_mulai_baru'])) ?>
                     </p>
@@ -140,11 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-    // Ambil Data Tarif Kamar dari Database (Ditanam lewat PHP)
     const tarifBulanan = <?= $data_sewa['harga_kamar'] ?: 0 ?>;
     const tarifMingguan = <?= $data_sewa['harga_minggu'] ?: 0 ?>;
     const tarifHarian = <?= $data_sewa['harga_hari'] ?: 0 ?>;
-    const tglMulaiFix = '<?= $data_sewa['tgl_mulai_baru'] ?>'; // Tanggal Kunci dari DB
+    const tglMulaiFix = '<?= $data_sewa['tgl_mulai_baru'] ?>';
 
     const jenissewaSelect = document.getElementById('jenissewa');
     const durasiSelect = document.getElementById('durasi');
@@ -184,7 +185,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         displayTotal.textContent = 'Rp ' + total.toLocaleString('id-ID');
         hiddenTotal.value = total;
 
-        // Kalkulasi Tanggal dari Titik Kunci
         const dateObj = new Date(tglMulaiFix);
         if (jenis === 'Bulanan') { dateObj.setMonth(dateObj.getMonth() + durasi); } 
         else if (jenis === 'Mingguan') { dateObj.setDate(dateObj.getDate() + (durasi * 7)); } 

@@ -16,7 +16,7 @@ $edit_id = '';
 $stmt_cust = $koneksi->query("SELECT id_customer, namacustomer, nikcustomer FROM table_customer ORDER BY namacustomer ASC");
 $data_customer = $stmt_cust->fetchAll(PDO::FETCH_ASSOC);
 
-// Ambil Data Kamar (Semua kamar ditarik, tidak peduli kosong atau terisi untuk kebutuhan koreksi)
+// Ambil Data Kamar
 $stmt_kamar = $koneksi->query("
     SELECT k.id_kamar, k.nomor_kamar, ko.nama_kost 
     FROM table_kamar k 
@@ -63,21 +63,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mulaisewa = $_POST['mulaisewa'];
     $habissewa = $_POST['habissewa'];
     
-    // Konversi Rupiah ke Angka Murni
     $diskontransaksi = (int)str_replace('.', '', $_POST['diskontransaksi']);
     $jumlahtransaksi = (int)str_replace('.', '', $_POST['jumlahtransaksi']);
+
+    // Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = $_SESSION['user_id'];
 
     if (empty($id_customer) || empty($id_kamar) || empty($namatransaksi) || empty($_POST['jumlahtransaksi'])) {
         $pesan_error = "Semua field yang bertanda * wajib diisi secara lengkap!";
     } else {
         if (!empty($id_trans_post)) {
-            // PROSES UPDATE TRANSAKSI
-            $stmt = $koneksi->prepare("UPDATE table_transaksi SET id_customer=?, id_kamar=?, tanggaltransaksi=?, namatransaksi=?, mulaisewa=?, habissewa=?, diskontransaksi=?, jumlahtransaksi=? WHERE id_transaksi=?");
-            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_trans_post]);
+            // UPDATE: Menyimpan id_user pengubah terakhir
+            $stmt = $koneksi->prepare("UPDATE table_transaksi SET id_customer=?, id_kamar=?, tanggaltransaksi=?, namatransaksi=?, mulaisewa=?, habissewa=?, diskontransaksi=?, jumlahtransaksi=?, id_user=? WHERE id_transaksi=?");
+            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_user_aktif, $id_trans_post]);
         } else {
-            // PROSES INSERT TRANSAKSI BARU (MANUAL)
-            $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, diskontransaksi, jumlahtransaksi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi]);
+            // INSERT: Menyimpan id_user pembuat
+            $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, diskontransaksi, jumlahtransaksi, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_user_aktif]);
         }
         header("Location: keuangan.php");
         exit;
@@ -107,13 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded shadow-sm text-sm font-medium"><?= $pesan_error ?></div>
         <?php endif; ?>
 
-        <form action="form_transaksi.php<?= $mode_edit ? '?edit='.$edit_id : '' ?>" method="POST" class="space-y-6">
+        <form id="formTransaksiManual" action="form_transaksi.php<?= $mode_edit ? '?edit='.$edit_id : '' ?>" method="POST" class="space-y-6" onsubmit="return konfirmasiTransaksi()">
             <input type="hidden" name="id_transaksi" value="<?= htmlspecialchars($edit_id) ?>">
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Customer / Penyewa *</label>
-                    <select name="id_customer" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
+                    <select id="id_customer" name="id_customer" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
                         <option value="" disabled <?= empty($edit_data['id_customer']) ? 'selected' : '' ?>>-- Pilih Customer Terdaftar --</option>
                         <?php foreach($data_customer as $cust): ?>
                             <option value="<?= $cust['id_customer'] ?>" <?= $edit_data['id_customer'] == $cust['id_customer'] ? 'selected' : '' ?>>
@@ -124,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Lokasi & Nomor Kamar *</label>
-                    <select name="id_kamar" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
+                    <select id="id_kamar" name="id_kamar" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
                         <option value="" disabled <?= empty($edit_data['id_kamar']) ? 'selected' : '' ?>>-- Pilih Alokasi Kamar --</option>
                         <?php foreach($data_kamar as $k): ?>
                             <option value="<?= $k['id_kamar'] ?>" <?= $edit_data['id_kamar'] == $k['id_kamar'] ? 'selected' : '' ?>>
@@ -138,31 +140,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5 bg-gray-50 p-4 rounded border border-gray-200">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Tgl Transaksi Bayar *</label>
-                    <input type="date" name="tanggaltransaksi" value="<?= htmlspecialchars($edit_data['tanggaltransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
+                    <input type="date" id="tanggaltransaksi" name="tanggaltransaksi" value="<?= htmlspecialchars($edit_data['tanggaltransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Tgl Mulai Sewa *</label>
-                    <input type="date" name="mulaisewa" value="<?= htmlspecialchars($edit_data['mulaisewa']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
+                    <input type="date" id="mulaisewa" name="mulaisewa" value="<?= htmlspecialchars($edit_data['mulaisewa']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Tgl Habis Sewa *</label>
-                    <input type="date" name="habissewa" value="<?= htmlspecialchars($edit_data['habissewa']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
+                    <input type="date" id="habissewa" name="habissewa" value="<?= htmlspecialchars($edit_data['habissewa']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
                 </div>
             </div>
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Keterangan Transaksi *</label>
-                <input type="text" name="namatransaksi" value="<?= htmlspecialchars($edit_data['namatransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                <input type="text" id="namatransaksi" name="namatransaksi" value="<?= htmlspecialchars($edit_data['namatransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500" required>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Diskon Diberikan (Rp)</label>
-                    <input type="number" name="diskontransaksi" value="<?= htmlspecialchars($edit_data['diskontransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                    <input type="number" id="diskontransaksi" name="diskontransaksi" value="<?= htmlspecialchars($edit_data['diskontransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Total Tagihan Final (Rp) *</label>
-                    <input type="number" name="jumlahtransaksi" value="<?= htmlspecialchars($edit_data['jumlahtransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-bold text-green-700" required placeholder="Cth: 1500000">
+                    <input type="number" id="jumlahtransaksi" name="jumlahtransaksi" value="<?= htmlspecialchars($edit_data['jumlahtransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-bold text-green-700" required placeholder="Cth: 1500000">
                 </div>
             </div>
 
@@ -174,5 +176,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
     </div>
 </div>
+
+<script>
+function konfirmasiTransaksi() {
+    const custSelect = document.getElementById('id_customer');
+    const customer = custSelect.options[custSelect.selectedIndex].text;
+    
+    const kamarSelect = document.getElementById('id_kamar');
+    const kamar = kamarSelect.options[kamarSelect.selectedIndex].text;
+    
+    const tglTrans = document.getElementById('tanggaltransaksi').value;
+    const tglMulai = document.getElementById('mulaisewa').value;
+    const tglHabis = document.getElementById('habissewa').value;
+    const rincian = document.getElementById('namatransaksi').value;
+    const diskon = document.getElementById('diskontransaksi').value || 0;
+    const nominal = document.getElementById('jumlahtransaksi').value;
+
+    // Abaikan kustom dialog jika validasi internal HTML5 mendeteksi data kosong
+    if (custSelect.value === "" || kamarSelect.value === "" || !tglTrans || !tglMulai || !tglHabis || !rincian || !nominal) {
+        return true;
+    }
+
+    const nominalRp = parseInt(nominal).toLocaleString('id-ID');
+    const diskonRp = parseInt(diskon).toLocaleString('id-ID');
+
+    const pesan = `KONFIRMASI <?= $mode_edit ? 'PERUBAHAN' : 'PENYIMPANAN' ?> TRANSAKSI MANUAL:\n\n` +
+                  `• Penyewa   : ${customer}\n` +
+                  `• Alokasi   : ${kamar}\n` +
+                  `• Tgl Bayar : ${tglTrans}\n` +
+                  `• Periode   : ${tglMulai} s/d ${tglHabis}\n` +
+                  `• Rincian   : ${rincian}\n` +
+                  `• Potongan  : Rp ${diskonRp}\n` +
+                  `• Total Kas : Rp ${nominalRp}\n\n` +
+                  `Apakah kueri penyesuaian transaksi di atas sudah benar?`;
+
+    return confirm(pesan);
+}
+</script>
 
 <?php require 'footer.php'; ?>

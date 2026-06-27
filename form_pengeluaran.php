@@ -41,15 +41,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tanggal = $_POST['tanggalpengeluaran'];
     $jumlah = (int)str_replace('.', '', $_POST['jumlahpengeluaran']);
 
+    // Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = $_SESSION['user_id'];
+
     if (empty($nama) || empty($jumlah) || empty($id_kost)) {
         $pesan_error = "Lokasi properti, rincian pengeluaran, dan nominal wajib diisi!";
     } else {
         if (!empty($id_pengeluaran_post)) {
-            $stmt = $koneksi->prepare("UPDATE table_pengeluaran SET jenispengeluaran=?, kategoripengeluaran=?, namapengeluaran=?, tanggalpengeluaran=?, jumlahpengeluaran=?, id_kost=? WHERE id_pengeluaran=?");
-            $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_pengeluaran_post]);
+            // UPDATE: Menyimpan id_user pengubah terakhir
+            $stmt = $koneksi->prepare("UPDATE table_pengeluaran SET jenispengeluaran=?, kategoripengeluaran=?, namapengeluaran=?, tanggalpengeluaran=?, jumlahpengeluaran=?, id_kost=?, id_user=? WHERE id_pengeluaran=?");
+            $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_user_aktif, $id_pengeluaran_post]);
         } else {
-            $stmt = $koneksi->prepare("INSERT INTO table_pengeluaran (jenispengeluaran, kategoripengeluaran, namapengeluaran, tanggalpengeluaran, jumlahpengeluaran, id_kost) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost]);
+            // INSERT: Menyimpan id_user pembuat pertama
+            $stmt = $koneksi->prepare("INSERT INTO table_pengeluaran (jenispengeluaran, kategoripengeluaran, namapengeluaran, tanggalpengeluaran, jumlahpengeluaran, id_kost, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_user_aktif]);
         }
         header("Location: keuangan.php");
         exit;
@@ -136,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 function konfirmasiSimpan() {
-    // Ambil semua elemen input berdasarkan ID
     const tgl = document.getElementById('tanggalpengeluaran').value;
     const kostSelect = document.getElementById('id_kost');
     const kost = kostSelect.options[kostSelect.selectedIndex].text;
@@ -145,15 +149,12 @@ function konfirmasiSimpan() {
     const rincian = document.getElementById('namapengeluaran').value;
     const nominal = document.getElementById('jumlahpengeluaran').value;
 
-    // Pastikan field tidak kosong agar validasi HTML5 bawaan tetap berfungsi
     if (!tgl || kostSelect.value === "" || !rincian || !nominal) {
         return true; 
     }
 
-    // Format nominal menjadi Rupiah dengan pemisah ribuan
     const nominalRp = parseInt(nominal).toLocaleString('id-ID');
 
-    // Susun pesan konfirmasi
     const pesan = `KONFIRMASI <?= $mode_edit ? 'PERUBAHAN' : 'PENYIMPANAN' ?> PENGELUARAN:\n\n` +
                   `• Tanggal   : ${tgl}\n` +
                   `• Lokasi    : ${kost}\n` +
@@ -162,7 +163,6 @@ function konfirmasiSimpan() {
                   `• Nominal   : Rp ${nominalRp}\n\n` +
                   `Apakah data di atas sudah benar dan ingin dilanjutkan?`;
 
-    // Tampilkan kotak dialog konfirmasi (kembalikan True jika OK, False jika Batal)
     return confirm(pesan);
 }
 </script>

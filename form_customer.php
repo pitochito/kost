@@ -52,6 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kontak_darurat = trim($_POST['kontakdarurat']);
     $status = $mode_edit ? $_POST['statuscustomer'] : 'Aktif';
 
+    // Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = $_SESSION['user_id'];
+
     if (empty($nik) || empty($nama)) {
         $pesan_error = "NIK dan Nama Customer wajib diisi!";
     } else {
@@ -88,11 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $koneksi->beginTransaction();
 
             if (!empty($id_cust_post)) {
-                $stmt = $koneksi->prepare("UPDATE table_customer SET nikcustomer=?, namacustomer=?, kotaasalcustomer=?, alamatcustomer=?, nohpcustomer=?, namakontakdarurat=?, kontakdarurat=?, statuscustomer=?, fotoktpcustomer=?, fotoselfiecustomer=? WHERE id_customer=?");
-                $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_cust_post]);
+                // UPDATE CUSTOMER (Mencatat id_user pengubah terakhir)
+                $stmt = $koneksi->prepare("UPDATE table_customer SET nikcustomer=?, namacustomer=?, kotaasalcustomer=?, alamatcustomer=?, nohpcustomer=?, namakontakdarurat=?, kontakdarurat=?, statuscustomer=?, fotoktpcustomer=?, fotoselfiecustomer=?, id_user=? WHERE id_customer=?");
+                $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_user_aktif, $id_cust_post]);
             } else {
-                $stmt = $koneksi->prepare("INSERT INTO table_customer (nikcustomer, namacustomer, kotaasalcustomer, alamatcustomer, nohpcustomer, namakontakdarurat, kontakdarurat, statuscustomer, fotoktpcustomer, fotoselfiecustomer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie]);
+                // INSERT CUSTOMER BARU (Mencatat id_user pembuat)
+                $stmt = $koneksi->prepare("INSERT INTO table_customer (nikcustomer, namacustomer, kotaasalcustomer, alamatcustomer, nohpcustomer, namakontakdarurat, kontakdarurat, statuscustomer, fotoktpcustomer, fotoselfiecustomer, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_user_aktif]);
                 $new_customer_id = $koneksi->lastInsertId();
 
                 $id_kamar = $_POST['id_kamar'];
@@ -108,8 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 elseif ($jenissewa == 'Harian') { $date_obj->modify("+$durasi days"); }
                 $habissewa = $date_obj->format('Y-m-d');
 
-                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?)");
-                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $id_kamar, $new_customer_id]);
+                // INSERT TRANSAKSI SEWA BARU (Mencatat id_user pembuat nota)
+                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id_user) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?)");
+                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $id_kamar, $new_customer_id, $id_user_aktif]);
 
                 $stmt_kamar_update = $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?");
                 $stmt_kamar_update->execute([$id_kamar]);
@@ -237,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Pilih Kamar Kosong</label>
                         <select name="id_kamar" id="id_kamar" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-gray-100 cursor-not-allowed" disabled required>
-                            <option value="" disabled selected>-- Pilih Kost Terlebih Dahulu --</option>
+                            <option value="" disabled selected>-- Pilih Kost Terlevelih Dahulu --</option>
                         </select>
                     </div>
 
@@ -295,9 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <?php if (!$mode_edit): ?>
 <script>
-    // Menyematkan data database ke dalam JavaScript JSON
     const dataKamarSemua = <?= json_encode($data_kamar_kosong) ?>;
-    
     const kostSelect = document.getElementById('id_kost');
     const kamarSelect = document.getElementById('id_kamar');
     const jenissewaSelect = document.getElementById('jenissewa');
@@ -308,14 +312,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const displayTotal = document.getElementById('display_total');
     const hiddenTotal = document.getElementById('total_harga_hidden');
 
-    let tarifAktif = 0; // Tarif kamar yang sedang dipilih (bulanan/mingguan/harian)
+    let tarifAktif = 0;
 
-    // 1. Logika Dropdown Bertingkat (Kost -> Kamar)
     kostSelect.addEventListener('change', function() {
         const selectedKost = this.value;
         kamarSelect.innerHTML = '<option value="" disabled selected>-- Pilih Nomor Kamar --</option>';
-        
-        // Filter kamar yang id_kost-nya cocok
         const kamarFilter = dataKamarSemua.filter(k => k.id_kost == selectedKost);
         
         if (kamarFilter.length > 0) {
@@ -340,86 +341,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         kalkulasiSemua();
     });
 
-    // 2. Logika Pilihan Durasi Berdasarkan Jenis Sewa
     function updateOpsiDurasi() {
         const jenis = jenissewaSelect.value;
         const durasiSaatIni = durasiSelect.value;
         durasiSelect.innerHTML = '';
-        let batas = 12; // Bulanan
-        let label = 'Bulan';
-        
+        let batas = 12; label = 'Bulan';
         if (jenis === 'Mingguan') { batas = 4; label = 'Minggu'; }
         else if (jenis === 'Harian') { batas = 6; label = 'Hari'; }
 
         for (let i = 1; i <= batas; i++) {
             const opt = document.createElement('option');
-            opt.value = i;
-            opt.textContent = `${i} ${label}`;
+            opt.value = i; opt.textContent = `${i} ${label}`;
             durasiSelect.appendChild(opt);
         }
-        // Jaga agar pilihan sebelumnya tidak mereset ke 1 jika masih dalam batas
         if (durasiSaatIni && durasiSaatIni <= batas) { durasiSelect.value = durasiSaatIni; }
-        
         kalkulasiSemua();
     }
     jenissewaSelect.addEventListener('change', updateOpsiDurasi);
-    
-    // Inisialisasi Durasi pertama kali
     updateOpsiDurasi(); 
 
-    // 3. Mesin Kalkulasi Tanggal & Harga
     function kalkulasiSemua() {
-        // Ambil Tarif Kamar
         if (kamarSelect.selectedIndex > 0) {
             const optKamar = kamarSelect.options[kamarSelect.selectedIndex];
             const jenis = jenissewaSelect.value;
             if (jenis === 'Bulanan') tarifAktif = parseInt(optKamar.dataset.bulanan);
             else if (jenis === 'Mingguan') tarifAktif = parseInt(optKamar.dataset.mingguan);
             else if (jenis === 'Harian') tarifAktif = parseInt(optKamar.dataset.harian);
-        } else {
-            tarifAktif = 0;
-        }
+        } else { tarifAktif = 0; }
 
         const durasi = parseInt(durasiSelect.value) || 1;
         const diskon = parseInt(diskonInput.value) || 0;
-        
-        // Kalkulasi Total Harga
         let total = (tarifAktif * durasi) - diskon;
-        if (total < 0) total = 0; // Cegah minus
+        if (total < 0) total = 0;
         
         displayTotal.textContent = 'Rp ' + total.toLocaleString('id-ID');
         hiddenTotal.value = total;
 
-        // Kalkulasi Tanggal (Tepat Sesuai Kalender Masehi)
         const tglMulai = mulaiSewaInput.value;
         if (tglMulai) {
             const dateObj = new Date(tglMulai);
-            if (jenissewaSelect.value === 'Bulanan') {
-                dateObj.setMonth(dateObj.getMonth() + durasi);
-            } else if (jenissewaSelect.value === 'Mingguan') {
-                dateObj.setDate(dateObj.getDate() + (durasi * 7));
-            } else if (jenissewaSelect.value === 'Harian') {
-                dateObj.setDate(dateObj.getDate() + durasi);
-            }
-            
-            // Format kembali ke lokal ID untuk ditampilkan
+            if (jenissewaSelect.value === 'Bulanan') { dateObj.setMonth(dateObj.getMonth() + durasi); } 
+            else if (jenissewaSelect.value === 'Mingguan') { dateObj.setDate(dateObj.getDate() + (durasi * 7)); } 
+            else if (jenissewaSelect.value === 'Harian') { dateObj.setDate(dateObj.getDate() + durasi); }
             const opsi = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             displayHabisSewa.textContent = dateObj.toLocaleDateString('id-ID', opsi);
-        } else {
-            displayHabisSewa.textContent = '-';
-        }
+        } else { displayHabisSewa.textContent = '-'; }
     }
 
-    // Pasang Pendeteksi Perubahan agar Otomatis Menghitung
     kamarSelect.addEventListener('change', kalkulasiSemua);
     durasiSelect.addEventListener('change', kalkulasiSemua);
     diskonInput.addEventListener('input', kalkulasiSemua);
     mulaiSewaInput.addEventListener('change', kalkulasiSemua);
     
-    // Set tanggal hari ini sebagai default di Date Picker
     const hariIni = new Date().toISOString().split('T')[0];
     mulaiSewaInput.value = hariIni;
-    kalkulasiSemua(); // Panggil sekali di awal
+    kalkulasiSemua();
 </script>
 <?php endif; ?>
 
