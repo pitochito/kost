@@ -80,6 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_bayar'])) {
 $start_date = $_GET['start_date'] ?? '';
 $end_date = $_GET['end_date'] ?? '';
 $status_filter = $_GET['status_filter'] ?? '';
+$kategori_filter = $_GET['kategori_filter'] ?? '';
+$limit_filter = $_GET['limit_filter'] ?? '10';
+
+// Ambil List Kategori Dinamis dari Database untuk Dropdown
+$stmt_kat = $koneksi->query("SELECT DISTINCT kategoripengeluaran FROM table_pengeluaran ORDER BY kategoripengeluaran ASC");
+$list_kategori_db = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
 
 $where_transaksi_arr = [];
 $params_in = [];
@@ -104,13 +110,18 @@ if (!empty($status_filter)) {
     $params_in[] = $status_filter;
 }
 
+// Filter Kategori (Khusus Pengeluaran)
+if (!empty($kategori_filter)) {
+    $where_pengeluaran_arr[] = "p.kategoripengeluaran = ?";
+    $params_out[] = $kategori_filter;
+}
+
 $where_transaksi = !empty($where_transaksi_arr) ? "WHERE " . implode(" AND ", $where_transaksi_arr) : "";
 $where_pengeluaran = !empty($where_pengeluaran_arr) ? "WHERE " . implode(" AND ", $where_pengeluaran_arr) : "";
 
 // ==========================================
-// 5. KALKULASI ARUS KAS (DIHITUNG DARI UANG YG SUDAH DIBAYAR)
+// 5. KALKULASI ARUS KAS (TIDAK TERPENGARUH PAGINATION)
 // ==========================================
-// Menggunakan jumlah_bayar agar Cashflow merepresentasikan uang riil yang sudah diterima
 $query_in = "SELECT SUM(t.jumlah_bayar) FROM table_transaksi t $where_transaksi";
 $stmt_in = $koneksi->prepare($query_in);
 $stmt_in->execute($params_in);
@@ -124,9 +135,41 @@ $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
 // ==========================================
-// 6. AMBIL DATA TABEL
+// 6. LOGIKA PAGINATION (HALAMAN)
 // ==========================================
-// Rincian Pemasukan: Diurutkan berdasarkan Prioritas Belum Lunas terlebih dahulu
+$page_in = isset($_GET['page_in']) ? max(1, (int)$_GET['page_in']) : 1;
+$page_out = isset($_GET['page_out']) ? max(1, (int)$_GET['page_out']) : 1;
+$limit = ($limit_filter === 'Semua') ? 9999999 : (int)$limit_filter;
+
+$offset_in = ($page_in - 1) * $limit;
+$offset_out = ($page_out - 1) * $limit;
+
+// Hitung Total Data untuk Pemasukan
+$query_count_in = "SELECT COUNT(*) FROM table_transaksi t $where_transaksi";
+$stmt_count_in = $koneksi->prepare($query_count_in);
+$stmt_count_in->execute($params_in);
+$total_data_in = $stmt_count_in->fetchColumn();
+$total_pages_in = ($limit == 9999999) ? 1 : ceil($total_data_in / $limit);
+
+// Hitung Total Data untuk Pengeluaran
+$query_count_out = "SELECT COUNT(*) FROM table_pengeluaran p $where_pengeluaran";
+$stmt_count_out = $koneksi->prepare($query_count_out);
+$stmt_count_out->execute($params_out);
+$total_data_out = $stmt_count_out->fetchColumn();
+$total_pages_out = ($limit == 9999999) ? 1 : ceil($total_data_out / $limit);
+
+// Helper function untuk membuat URL Pagination tanpa merusak filter lain
+function buildPaginateUrl($params_to_update) {
+    $get = $_GET;
+    foreach($params_to_update as $key => $value) {
+        $get[$key] = $value;
+    }
+    return '?' . http_build_query($get);
+}
+
+// ==========================================
+// 7. AMBIL DATA TABEL (DENGAN LIMIT & OFFSET)
+// ==========================================
 $query_list_in = "
     SELECT t.*, c.namacustomer, k.nomor_kamar, ko.nama_kost
     FROM table_transaksi t
@@ -135,18 +178,19 @@ $query_list_in = "
     JOIN table_kost ko ON k.id_kost = ko.id_kost
     $where_transaksi
     ORDER BY FIELD(t.status_bayar, 'Belum Lunas', 'Lunas'), t.tanggaltransaksi DESC, t.id_transaksi DESC
+    LIMIT $limit OFFSET $offset_in
 ";
 $stmt_list_in = $koneksi->prepare($query_list_in);
 $stmt_list_in->execute($params_in);
 $data_pemasukan = $stmt_list_in->fetchAll(PDO::FETCH_ASSOC);
 
-// Rincian Pengeluaran
 $query_list_out = "
     SELECT p.*, ko.nama_kost 
     FROM table_pengeluaran p
     LEFT JOIN table_kost ko ON p.id_kost = ko.id_kost
     $where_pengeluaran
     ORDER BY p.tanggalpengeluaran DESC, p.id_pengeluaran DESC
+    LIMIT $limit OFFSET $offset_out
 ";
 $stmt_list_out = $koneksi->prepare($query_list_out);
 $stmt_list_out->execute($params_out);
@@ -167,33 +211,54 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
     <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold"><?= $pesan_sukses ?></div>
 <?php endif; ?>
 
-<!-- FORM FILTER -->
-<form action="keuangan.php" method="GET" class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-end flex-wrap">
-    <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status Pembayaran</label>
-        <select name="status_filter" class="w-full md:w-auto border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none bg-white">
-            <option value="">Semua Status</option>
-            <option value="Lunas" <?= $status_filter == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
-            <option value="Belum Lunas" <?= $status_filter == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
-        </select>
+<form action="keuangan.php" method="GET" class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Mulai Tanggal</label>
+            <input type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai Tanggal</label>
+            <input type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status Pemasukan</label>
+            <select name="status_filter" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none bg-white">
+                <option value="">Semua Status</option>
+                <option value="Lunas" <?= $status_filter == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
+                <option value="Belum Lunas" <?= $status_filter == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tampilkan per Tabel</label>
+            <select name="limit_filter" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none bg-white font-semibold">
+                <option value="10" <?= $limit_filter == '10' ? 'selected' : '' ?>>10 Baris</option>
+                <option value="25" <?= $limit_filter == '25' ? 'selected' : '' ?>>25 Baris</option>
+                <option value="50" <?= $limit_filter == '50' ? 'selected' : '' ?>>50 Baris</option>
+                <option value="Semua" <?= $limit_filter == 'Semua' ? 'selected' : '' ?>>Tampilkan Semua</option>
+            </select>
+        </div>
     </div>
-    <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Mulai Tanggal</label>
-        <input type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>" class="w-full md:w-auto border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none">
-    </div>
-    <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai Tanggal</label>
-        <input type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" class="w-full md:w-auto border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none">
-    </div>
-    <div class="flex gap-2 w-full md:w-auto">
-        <button type="submit" class="flex-1 md:flex-none bg-black text-white px-6 py-2 rounded font-bold hover:bg-gray-800 transition-colors">Filter</button>
-        <?php if(!empty($start_date) || !empty($end_date) || !empty($status_filter)): ?>
-            <a href="keuangan.php" class="bg-gray-200 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-300 transition-colors text-center">Reset</a>
-        <?php endif; ?>
+    
+    <div class="flex flex-col md:flex-row gap-4 justify-between items-end border-t border-gray-100 pt-4">
+        <div class="w-full md:w-1/3">
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter Kategori Pengeluaran</label>
+            <select name="kategori_filter" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-yellow-500 focus:outline-none bg-white">
+                <option value="">Semua Kategori</option>
+                <?php foreach($list_kategori_db as $kat): ?>
+                    <option value="<?= htmlspecialchars($kat) ?>" <?= $kategori_filter == $kat ? 'selected' : '' ?>><?= htmlspecialchars($kat) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+            <button type="submit" class="flex-1 md:flex-none bg-black text-white px-8 py-2.5 rounded font-bold hover:bg-gray-800 transition-colors shadow-md">Terapkan Filter</button>
+            <?php if(!empty($start_date) || !empty($end_date) || !empty($status_filter) || !empty($kategori_filter) || $limit_filter != '10'): ?>
+                <a href="keuangan.php" class="bg-gray-200 text-gray-700 px-6 py-2.5 rounded font-bold hover:bg-gray-300 transition-colors text-center border border-gray-300">Reset</a>
+            <?php endif; ?>
+        </div>
     </div>
 </form>
 
-<!-- RINGKASAN KARTU KEUANGAN -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
     <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center relative overflow-hidden">
         <p class="text-sm font-semibold text-gray-500 mb-1">Dana Masuk (Telah Dibayar)</p>
@@ -211,152 +276,158 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
-<!-- TABEL PEMASUKAN -->
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
-    <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all">
+    <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pemasukan', 'icon_pemasukan')">
         <h3 class="font-bold text-green-800 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Riwayat Tagihan & Pemasukan Sewa
+            <svg id="icon_pemasukan" class="w-5 h-5 transition-transform duration-300 rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+            Riwayat Pemasukan Sewa (<?= $total_data_in ?> Data)
         </h3>
-        
         <?php if ($role_aktif === 'super admin'): ?>
-            <a href="form_transaksi.php" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow-sm transition-colors flex items-center gap-1">
-                + Tambah Transaksi Manual
+            <a href="form_transaksi.php" onclick="event.stopPropagation();" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow-sm transition-colors flex items-center gap-1">
+                + Tambah Manual
             </a>
         <?php endif; ?>
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse min-w-[1000px]">
-            <thead class="bg-white border-b border-gray-200">
-                <tr>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tanggal</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Customer & Properti</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tagihan & Status</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-right">Pembayaran Masuk</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                <?php foreach ($data_pemasukan as $in) : 
-                    // Kalkulasi Logika Tagihan
-                    $total_tagihan = $in['jumlahtransaksi'] - $in['diskontransaksi'] + $in['jumlah_charge'];
-                    $kurang_bayar = $total_tagihan - $in['jumlah_bayar'];
-                    $status_badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200';
-                ?>
-                <tr class="hover:bg-gray-50 transition-colors <?= $in['status_bayar'] === 'Belum Lunas' ? 'bg-red-50/30' : '' ?>">
-                    <td class="py-3 px-4">
-                        <p class="text-sm font-bold text-gray-800"><?= date('d M Y', strtotime($in['tanggaltransaksi'])) ?></p>
-                        <p class="text-xs text-gray-500 mt-1">Trx ID: #<?= $in['id_transaksi'] ?></p>
-                    </td>
-                    <td class="py-3 px-4">
-                        <p class="text-sm font-bold text-gray-800"><?= htmlspecialchars($in['namacustomer']) ?></p>
-                        <p class="text-xs font-semibold text-gray-600 mt-0.5"><?= htmlspecialchars($in['nama_kost']) ?> - Kamar <?= htmlspecialchars($in['nomor_kamar']) ?></p>
-                        <p class="text-xs text-gray-500 mt-0.5"><?= htmlspecialchars($in['namatransaksi']) ?></p>
-                    </td>
-                    <td class="py-3 px-4">
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider <?= $status_badge ?>">
-                                <?= htmlspecialchars($in['status_bayar']) ?>
-                            </span>
-                        </div>
-                        <p class="text-sm font-semibold text-gray-700">Total: Rp <?= number_format($total_tagihan, 0, ',', '.') ?></p>
-                        <?php if($in['status_bayar'] === 'Belum Lunas'): ?>
-                            <p class="text-xs font-bold text-red-500 mt-0.5">Kurang: Rp <?= number_format($kurang_bayar, 0, ',', '.') ?></p>
-                        <?php endif; ?>
-                    </td>
-                    <td class="py-3 px-4 text-right">
-                        <p class="text-sm font-black text-green-600">+ Rp <?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></p>
-                        <p class="text-[10px] text-gray-400 font-semibold mt-1">Last Update: <?= date('d/m/Y', strtotime($in['tanggal_bayar'])) ?></p>
-                    </td>
-                    <td class="py-3 px-4">
-                        <div class="flex flex-col sm:flex-row justify-center items-center gap-2">
+    
+    <div id="wrapper_pemasukan" class="block">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[1000px]">
+                <thead class="bg-white border-b border-gray-200">
+                    <tr>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tanggal</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Customer & Properti</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tagihan & Status</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-right">Pembayaran Masuk</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <?php foreach ($data_pemasukan as $in) : 
+                        $total_tagihan = $in['jumlahtransaksi'] - $in['diskontransaksi'] + $in['jumlah_charge'];
+                        $kurang_bayar = $total_tagihan - $in['jumlah_bayar'];
+                        $status_badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200';
+                    ?>
+                    <tr class="hover:bg-gray-50 transition-colors <?= $in['status_bayar'] === 'Belum Lunas' ? 'bg-red-50/30' : '' ?>">
+                        <td class="py-3 px-4">
+                            <p class="text-sm font-bold text-gray-800"><?= date('d M Y', strtotime($in['tanggaltransaksi'])) ?></p>
+                            <p class="text-xs text-gray-500 mt-1">Trx ID: #<?= $in['id_transaksi'] ?></p>
+                        </td>
+                        <td class="py-3 px-4">
+                            <p class="text-sm font-bold text-gray-800"><?= htmlspecialchars($in['namacustomer']) ?></p>
+                            <p class="text-xs font-semibold text-gray-600 mt-0.5"><?= htmlspecialchars($in['nama_kost']) ?> - Kamar <?= htmlspecialchars($in['nomor_kamar']) ?></p>
+                            <p class="text-xs text-gray-500 mt-0.5"><?= htmlspecialchars($in['namatransaksi']) ?></p>
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider <?= $status_badge ?>">
+                                    <?= htmlspecialchars($in['status_bayar']) ?>
+                                </span>
+                            </div>
+                            <p class="text-sm font-semibold text-gray-700">Total: Rp <?= number_format($total_tagihan, 0, ',', '.') ?></p>
                             <?php if($in['status_bayar'] === 'Belum Lunas'): ?>
-                                <button type="button" 
-                                    onclick="bukaModalBayar(<?= $in['id_transaksi'] ?>, '<?= htmlspecialchars($in['namacustomer']) ?>', <?= $kurang_bayar ?>)" 
-                                    class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">
-                                    Bayar
-                                </button>
+                                <p class="text-xs font-bold text-red-500 mt-0.5">Kurang: Rp <?= number_format($kurang_bayar, 0, ',', '.') ?></p>
                             <?php endif; ?>
-                            
-                            <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="w-full sm:w-auto text-center border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded text-xs font-bold transition-colors">
-                                Cetak
-                            </a>
-                            
-                            <?php if ($role_aktif === 'super admin'): ?>
-                                <a href="form_transaksi.php?edit=<?= $in['id_transaksi'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-2 py-1.5 rounded text-xs font-semibold transition-colors" title="Edit">
-                                    Edit
-                                </a>
-                                <a href="keuangan.php?hapus_transaksi=<?= $in['id_transaksi'] ?>" onclick="return confirm('Yakin hapus transaksi ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-2 py-1.5 rounded text-xs font-semibold transition-colors" title="Hapus">
-                                    X
-                                </a>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                <?php if(empty($data_pemasukan)): ?>
-                <tr>
-                    <td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada catatan tagihan/pemasukan pada rentang waktu ini.</td>
-                </tr>
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                            <p class="text-sm font-black text-green-600">+ Rp <?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></p>
+                            <p class="text-[10px] text-gray-400 font-semibold mt-1">Update: <?= date('d/m/Y', strtotime($in['tanggal_bayar'])) ?></p>
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="flex flex-col sm:flex-row justify-center items-center gap-2">
+                                <?php if($in['status_bayar'] === 'Belum Lunas'): ?>
+                                    <button type="button" onclick="bukaModalBayar(<?= $in['id_transaksi'] ?>, '<?= htmlspecialchars($in['namacustomer']) ?>', <?= $kurang_bayar ?>)" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Bayar</button>
+                                <?php endif; ?>
+                                <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="w-full sm:w-auto text-center border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded text-xs font-bold transition-colors">Cetak</a>
+                                <?php if ($role_aktif === 'super admin'): ?>
+                                    <a href="form_transaksi.php?edit=<?= $in['id_transaksi'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-2 py-1.5 rounded text-xs font-semibold" title="Edit">Edit</a>
+                                    <a href="keuangan.php?hapus_transaksi=<?= $in['id_transaksi'] ?>" onclick="return confirm('Yakin hapus transaksi ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-2 py-1.5 rounded text-xs font-semibold" title="Hapus">X</a>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php if(empty($data_pemasukan)): ?>
+                    <tr><td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada catatan tagihan/pemasukan pada filter ini.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        
+        <?php if($total_pages_in > 1): ?>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
+            <span class="text-gray-600 font-medium">Halaman <?= $page_in ?> dari <?= $total_pages_in ?></span>
+            <div class="flex gap-2">
+                <?php if($page_in > 1): ?>
+                    <a href="<?= buildPaginateUrl(['page_in' => $page_in - 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">&larr; Prev</a>
                 <?php endif; ?>
-            </tbody>
-        </table>
+                <?php if($page_in < $total_pages_in): ?>
+                    <a href="<?= buildPaginateUrl(['page_in' => $page_in + 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">Next &rarr;</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<!-- TABEL PENGELUARAN -->
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 bg-red-50">
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-gray-200 bg-red-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pengeluaran', 'icon_pengeluaran')">
         <h3 class="font-bold text-red-800 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
-            Riwayat Pengeluaran Operasional
+            <svg id="icon_pengeluaran" class="w-5 h-5 transition-transform duration-300 rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+            Riwayat Pengeluaran Operasional (<?= $total_data_out ?> Data)
         </h3>
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse min-w-[800px]">
-            <thead class="bg-white border-b border-gray-200">
-                <tr>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Tanggal Pengeluaran</th>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Lokasi Properti</th>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600">Kategori & Rincian</th>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-right">Nominal Keluar (Rp)</th>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-center">Tindakan</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                <?php foreach ($data_pengeluaran as $out) : ?>
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="py-3 px-6 text-sm font-semibold text-gray-700">
-                        <?= date('d M Y', strtotime($out['tanggalpengeluaran'])) ?>
-                    </td>
-                    <td class="py-3 px-6 text-sm font-bold text-gray-800">
-                        <?= htmlspecialchars($out['nama_kost'] ?? 'Semua / Biaya Pusat') ?>
-                    </td>
-                    <td class="py-3 px-6 text-sm">
-                        <span class="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs font-bold mr-2"><?= htmlspecialchars($out['kategoripengeluaran']) ?></span>
-                        <span class="text-gray-600"><?= htmlspecialchars($out['namapengeluaran']) ?></span>
-                    </td>
-                    <td class="py-3 px-6 text-sm font-black text-red-600 text-right">
-                        - <?= number_format($out['jumlahpengeluaran'], 0, ',', '.') ?>
-                    </td>
-                    <td class="py-3 px-6 flex justify-center gap-2">
-                        <a href="form_pengeluaran.php?edit=<?= $out['id_pengeluaran'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
-                        <a href="keuangan.php?hapus=<?= $out['id_pengeluaran'] ?>" onclick="return confirm('Hapus catatan pengeluaran ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                
-                <?php if(empty($data_pengeluaran)): ?>
-                <tr>
-                    <td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada catatan pengeluaran pada rentang waktu ini.</td>
-                </tr>
+    
+    <div id="wrapper_pengeluaran" class="block">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[800px]">
+                <thead class="bg-white border-b border-gray-200">
+                    <tr>
+                        <th class="py-3 px-6 text-sm font-bold text-gray-600">Tanggal Pengeluaran</th>
+                        <th class="py-3 px-6 text-sm font-bold text-gray-600">Lokasi Properti</th>
+                        <th class="py-3 px-6 text-sm font-bold text-gray-600">Kategori & Rincian</th>
+                        <th class="py-3 px-6 text-sm font-bold text-gray-600 text-right">Nominal Keluar (Rp)</th>
+                        <th class="py-3 px-6 text-sm font-bold text-gray-600 text-center">Tindakan</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <?php foreach ($data_pengeluaran as $out) : ?>
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="py-3 px-6 text-sm font-semibold text-gray-700"><?= date('d M Y', strtotime($out['tanggalpengeluaran'])) ?></td>
+                        <td class="py-3 px-6 text-sm font-bold text-gray-800"><?= htmlspecialchars($out['nama_kost'] ?? 'Semua / Biaya Pusat') ?></td>
+                        <td class="py-3 px-6 text-sm">
+                            <span class="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs font-bold mr-2"><?= htmlspecialchars($out['kategoripengeluaran']) ?></span>
+                            <span class="text-gray-600"><?= htmlspecialchars($out['namapengeluaran']) ?></span>
+                        </td>
+                        <td class="py-3 px-6 text-sm font-black text-red-600 text-right">- <?= number_format($out['jumlahpengeluaran'], 0, ',', '.') ?></td>
+                        <td class="py-3 px-6 flex justify-center gap-2">
+                            <a href="form_pengeluaran.php?edit=<?= $out['id_pengeluaran'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold">Edit</a>
+                            <a href="keuangan.php?hapus=<?= $out['id_pengeluaran'] ?>" onclick="return confirm('Hapus catatan pengeluaran ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold">Hapus</a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php if(empty($data_pengeluaran)): ?>
+                    <tr><td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada catatan pengeluaran pada filter ini.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        
+        <?php if($total_pages_out > 1): ?>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
+            <span class="text-gray-600 font-medium">Halaman <?= $page_out ?> dari <?= $total_pages_out ?></span>
+            <div class="flex gap-2">
+                <?php if($page_out > 1): ?>
+                    <a href="<?= buildPaginateUrl(['page_out' => $page_out - 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">&larr; Prev</a>
                 <?php endif; ?>
-            </tbody>
-        </table>
+                <?php if($page_out < $total_pages_out): ?>
+                    <a href="<?= buildPaginateUrl(['page_out' => $page_out + 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">Next &rarr;</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<!-- MODAL UPDATE PEMBAYARAN -->
 <div id="modal_bayar" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <div class="bg-green-600 px-6 py-4 flex justify-between items-center">
@@ -365,28 +436,23 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
         </div>
         <form action="keuangan.php" method="POST" onsubmit="return validasiModalBayar(event)" class="p-6">
             <input type="hidden" name="id_transaksi_bayar" id="input_id_transaksi">
-            
             <div class="mb-4 bg-gray-50 p-3 rounded border border-gray-200">
                 <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Customer</p>
                 <p class="font-bold text-gray-800" id="display_nama_cust"></p>
             </div>
-            
             <div class="mb-5 bg-red-50 p-3 rounded border border-red-200">
                 <p class="text-xs text-red-500 font-bold uppercase tracking-wider mb-1">Sisa Kurang Bayar</p>
                 <p class="text-xl font-black text-red-600" id="display_sisa_bayar"></p>
                 <p class="text-[10px] text-red-400 mt-1">*Hati-hati! Jangan input melebihi nominal ini.</p>
             </div>
-
             <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Tanggal Transfer/Bayar <span class="text-red-500">*</span></label>
                 <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none">
             </div>
-
             <div class="mb-6">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nominal Pembayaran (Rp) <span class="text-red-500">*</span></label>
                 <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none font-bold text-lg text-gray-800">
             </div>
-
             <div class="flex gap-3 justify-end mt-2">
                 <button type="button" onclick="tutupModalBayar()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors">Batal</button>
                 <button type="submit" name="proses_bayar" class="px-5 py-2.5 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition-colors shadow-md">Simpan Pembayaran</button>
@@ -396,47 +462,57 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <script>
-// Format Rupiah untuk tampilan JS
+// Logika Accordion Tampil/Sembunyi Tabel
+function toggleSection(wrapperId, iconId) {
+    const wrapper = document.getElementById(wrapperId);
+    const icon = document.getElementById(iconId);
+    
+    if (wrapper.classList.contains('hidden')) {
+        wrapper.classList.remove('hidden');
+        icon.classList.remove('-rotate-90');
+    } else {
+        wrapper.classList.add('hidden');
+        icon.classList.add('-rotate-90');
+    }
+}
+
+// Format Rupiah untuk tampilan JS Modal
 const formatRupiahJs = (angka) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
 }
 
-// Fungsi Buka Modal
 function bukaModalBayar(id, nama, kurang) {
     document.getElementById('input_id_transaksi').value = id;
     document.getElementById('display_nama_cust').textContent = nama;
     document.getElementById('display_sisa_bayar').textContent = formatRupiahJs(kurang);
     
     const inputNominal = document.getElementById('input_nominal_bayar');
-    inputNominal.value = kurang; // Set default full sisa bayar
-    inputNominal.max = kurang; // HTML5 Validation protection
-    inputNominal.dataset.maksimum = kurang; // Data set untuk JS manual validation
+    inputNominal.value = kurang; 
+    inputNominal.max = kurang; 
+    inputNominal.dataset.maksimum = kurang; 
     
     document.getElementById('modal_bayar').classList.remove('hidden');
 }
 
-// Fungsi Tutup Modal
 function tutupModalBayar() {
     document.getElementById('modal_bayar').classList.add('hidden');
 }
 
-// Validasi saat form di-submit
 function validasiModalBayar(e) {
     const inputNominal = document.getElementById('input_nominal_bayar');
     const nominal = parseInt(inputNominal.value);
     const batasMaksimum = parseInt(inputNominal.dataset.maksimum);
     
     if (nominal > batasMaksimum) {
-        alert('PERINGATAN SISTEM!\n\nNominal yang Anda masukkan (' + formatRupiahJs(nominal) + ') LEBIH BESAR dari sisa tagihan customer (' + formatRupiahJs(batasMaksimum) + ').\n\nSilakan periksa kembali bukti transfer dan perbaiki nominal input.');
+        alert('PERINGATAN SISTEM!\n\nNominal yang Anda masukkan LEBIH BESAR dari sisa tagihan.\n\nSilakan periksa kembali bukti transfer.');
         e.preventDefault();
         return false;
     }
     
-    if (!confirm('Anda yakin ingin menyimpan data pembayaran ini?\nPastikan nominal transfer sesuai dengan mutasi bank Anda.')) {
+    if (!confirm('Anda yakin ingin menyimpan data pembayaran ini?')) {
         e.preventDefault();
         return false;
     }
-    
     return true;
 }
 </script>
