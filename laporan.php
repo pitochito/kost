@@ -296,11 +296,10 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
         <!-- KOLOM TANDA TANGAN -->
         <div class="mt-16 flex justify-end">
             <div class="text-center w-64">
-                <p class="text-sm font-semibold text-gray-600 mb-24">Pontianak, <?= date('d F Y') ?></p>
-                <p class="text-sm font-bold text-gray-800 uppercase border-b border-gray-400 pb-1 mb-1">
-                    ( ...................................................... )
-                </p>
-                <p class="text-xs text-gray-500 font-semibold tracking-wider">Manager / Pengelola</p>
+                <p class="text-sm font-semibold text-gray-600 mb-20">Pontianak, <?= date('d F Y') ?></p>
+                <!-- Garis lurus untuk tanda tangan -->
+                <div class="border-b border-gray-800 w-48 mx-auto mb-1"></div>
+                <p class="text-xs text-gray-500 font-bold tracking-wider uppercase mt-1">Manager / Pengelola</p>
             </div>
         </div>
 

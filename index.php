@@ -137,11 +137,8 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
     
     <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
         <!-- Filter Lokasi -->
-        <form action="index.php" method="GET" class="relative w-full sm:w-auto">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-            </div>
-            <select name="filter_kost" onchange="this.form.submit()" class="block w-full sm:w-56 pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
+        <form action="index.php" method="GET" class="w-full sm:w-auto">
+            <select name="filter_kost" onchange="this.form.submit()" class="block w-full sm:w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
                 <option value="">Semua Lokasi (Global)</option>
                 <?php foreach($data_lokasi_kost as $lk): ?>
                     <option value="<?= $lk['id_kost'] ?>" <?= ($filter_kost == $lk['id_kost']) ? 'selected' : '' ?>>
