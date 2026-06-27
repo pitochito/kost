@@ -66,19 +66,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $diskontransaksi = (int)str_replace('.', '', $_POST['diskontransaksi']);
     $jumlahtransaksi = (int)str_replace('.', '', $_POST['jumlahtransaksi']);
 
-    // Ambil ID User dari Session Aktif untuk Audit Trail
-    $id_user_aktif = $_SESSION['user_id'];
+    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 
     if (empty($id_customer) || empty($id_kamar) || empty($namatransaksi) || empty($_POST['jumlahtransaksi'])) {
         $pesan_error = "Semua field yang bertanda * wajib diisi secara lengkap!";
     } else {
         if (!empty($id_trans_post)) {
-            // UPDATE: Menyimpan id_user pengubah terakhir
-            $stmt = $koneksi->prepare("UPDATE table_transaksi SET id_customer=?, id_kamar=?, tanggaltransaksi=?, namatransaksi=?, mulaisewa=?, habissewa=?, diskontransaksi=?, jumlahtransaksi=?, id_user=? WHERE id_transaksi=?");
+            // UPDATE: Menyimpan 'id' pengubah terakhir (sesuai db_kost)
+            $stmt = $koneksi->prepare("UPDATE table_transaksi SET id_customer=?, id_kamar=?, tanggaltransaksi=?, namatransaksi=?, mulaisewa=?, habissewa=?, diskontransaksi=?, jumlahtransaksi=?, id=? WHERE id_transaksi=?");
             $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_user_aktif, $id_trans_post]);
         } else {
-            // INSERT: Menyimpan id_user pembuat
-            $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, diskontransaksi, jumlahtransaksi, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            // INSERT: Menyimpan 'id' pembuat (sesuai db_kost)
+            $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, diskontransaksi, jumlahtransaksi, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_user_aktif]);
         }
         header("Location: keuangan.php");
@@ -178,13 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+const modeEditTransJS = <?= json_encode($mode_edit) ?>;
+
 function konfirmasiTransaksi() {
     const custSelect = document.getElementById('id_customer');
-    const customer = custSelect.options[custSelect.selectedIndex].text;
-    
     const kamarSelect = document.getElementById('id_kamar');
-    const kamar = kamarSelect.options[kamarSelect.selectedIndex].text;
-    
     const tglTrans = document.getElementById('tanggaltransaksi').value;
     const tglMulai = document.getElementById('mulaisewa').value;
     const tglHabis = document.getElementById('habissewa').value;
@@ -197,10 +195,14 @@ function konfirmasiTransaksi() {
         return true;
     }
 
+    const customer = custSelect.options[custSelect.selectedIndex].text;
+    const kamar = kamarSelect.options[kamarSelect.selectedIndex].text;
+
     const nominalRp = parseInt(nominal).toLocaleString('id-ID');
     const diskonRp = parseInt(diskon).toLocaleString('id-ID');
+    const aksi = modeEditTransJS ? 'PERUBAHAN' : 'PENYIMPANAN';
 
-    const pesan = `KONFIRMASI <?= $mode_edit ? 'PERUBAHAN' : 'PENYIMPANAN' ?> TRANSAKSI MANUAL:\n\n` +
+    const pesan = `KONFIRMASI ${aksi} TRANSAKSI MANUAL:\n\n` +
                   `• Penyewa   : ${customer}\n` +
                   `• Alokasi   : ${kamar}\n` +
                   `• Tgl Bayar : ${tglTrans}\n` +

@@ -41,19 +41,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tanggal = $_POST['tanggalpengeluaran'];
     $jumlah = (int)str_replace('.', '', $_POST['jumlahpengeluaran']);
 
-    // Ambil ID User dari Session Aktif untuk Audit Trail
-    $id_user_aktif = $_SESSION['user_id'];
+    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 
     if (empty($nama) || empty($jumlah) || empty($id_kost)) {
         $pesan_error = "Lokasi properti, rincian pengeluaran, dan nominal wajib diisi!";
     } else {
         if (!empty($id_pengeluaran_post)) {
-            // UPDATE: Menyimpan id_user pengubah terakhir
-            $stmt = $koneksi->prepare("UPDATE table_pengeluaran SET jenispengeluaran=?, kategoripengeluaran=?, namapengeluaran=?, tanggalpengeluaran=?, jumlahpengeluaran=?, id_kost=?, id_user=? WHERE id_pengeluaran=?");
+            // UPDATE: Menyimpan id pengubah terakhir sesuai db_kost.dump
+            $stmt = $koneksi->prepare("UPDATE table_pengeluaran SET jenispengeluaran=?, kategoripengeluaran=?, namapengeluaran=?, tanggalpengeluaran=?, jumlahpengeluaran=?, id_kost=?, id=? WHERE id_pengeluaran=?");
             $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_user_aktif, $id_pengeluaran_post]);
         } else {
-            // INSERT: Menyimpan id_user pembuat pertama
-            $stmt = $koneksi->prepare("INSERT INTO table_pengeluaran (jenispengeluaran, kategoripengeluaran, namapengeluaran, tanggalpengeluaran, jumlahpengeluaran, id_kost, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            // INSERT: Menyimpan id pembuat pertama sesuai db_kost.dump
+            $stmt = $koneksi->prepare("INSERT INTO table_pengeluaran (jenispengeluaran, kategoripengeluaran, namapengeluaran, tanggalpengeluaran, jumlahpengeluaran, id_kost, id) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_user_aktif]);
         }
         header("Location: keuangan.php");

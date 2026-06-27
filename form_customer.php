@@ -52,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kontak_darurat = trim($_POST['kontakdarurat']);
     $status = $mode_edit ? $_POST['statuscustomer'] : 'Aktif';
 
-    // Ambil ID User dari Session Aktif untuk Audit Trail
-    $id_user_aktif = $_SESSION['user_id'];
+    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
+    $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 
     if (empty($nik) || empty($nama)) {
         $pesan_error = "NIK dan Nama Customer wajib diisi!";
@@ -91,12 +91,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $koneksi->beginTransaction();
 
             if (!empty($id_cust_post)) {
-                // UPDATE CUSTOMER (Mencatat id_user pengubah terakhir)
-                $stmt = $koneksi->prepare("UPDATE table_customer SET nikcustomer=?, namacustomer=?, kotaasalcustomer=?, alamatcustomer=?, nohpcustomer=?, namakontakdarurat=?, kontakdarurat=?, statuscustomer=?, fotoktpcustomer=?, fotoselfiecustomer=?, id_user=? WHERE id_customer=?");
+                // UPDATE CUSTOMER (Menggunakan 'id' sesuai db_kost.dump)
+                $stmt = $koneksi->prepare("UPDATE table_customer SET nikcustomer=?, namacustomer=?, kotaasalcustomer=?, alamatcustomer=?, nohpcustomer=?, namakontakdarurat=?, kontakdarurat=?, statuscustomer=?, fotoktpcustomer=?, fotoselfiecustomer=?, id=? WHERE id_customer=?");
                 $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_user_aktif, $id_cust_post]);
             } else {
-                // INSERT CUSTOMER BARU (Mencatat id_user pembuat)
-                $stmt = $koneksi->prepare("INSERT INTO table_customer (nikcustomer, namacustomer, kotaasalcustomer, alamatcustomer, nohpcustomer, namakontakdarurat, kontakdarurat, statuscustomer, fotoktpcustomer, fotoselfiecustomer, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                // INSERT CUSTOMER BARU (Menggunakan 'id' sesuai db_kost.dump)
+                $stmt = $koneksi->prepare("INSERT INTO table_customer (nikcustomer, namacustomer, kotaasalcustomer, alamatcustomer, nohpcustomer, namakontakdarurat, kontakdarurat, statuscustomer, fotoktpcustomer, fotoselfiecustomer, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_user_aktif]);
                 $new_customer_id = $koneksi->lastInsertId();
 
@@ -113,8 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 elseif ($jenissewa == 'Harian') { $date_obj->modify("+$durasi days"); }
                 $habissewa = $date_obj->format('Y-m-d');
 
-                // INSERT TRANSAKSI SEWA BARU (Mencatat id_user pembuat nota)
-                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id_user) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?)");
+                // INSERT TRANSAKSI SEWA BARU (Menggunakan 'id' sesuai db_kost.dump)
+                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?)");
                 $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $id_kamar, $new_customer_id, $id_user_aktif]);
 
                 $stmt_kamar_update = $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?");
@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form action="form_customer.php<?= $mode_edit ? '?edit='.$edit_id : '' ?>" method="POST" enctype="multipart/form-data" 
-              onsubmit="return confirm('Apakah Anda yakin data customer dan rincian transaksinya sudah benar?');">
+              onsubmit="return konfirmasiCustomer();">
             <input type="hidden" name="id_customer" value="<?= htmlspecialchars($edit_id) ?>">
             
             <div class="flex flex-col lg:flex-row gap-8">
@@ -159,11 +159,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">NIK (Sesuai KTP)</label>
-                            <input type="text" name="nikcustomer" value="<?= htmlspecialchars($edit_data['nikcustomer']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" required>
+                            <input type="text" id="nikcustomer" name="nikcustomer" value="<?= htmlspecialchars($edit_data['nikcustomer']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" required>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Lengkap</label>
-                            <input type="text" name="namacustomer" value="<?= htmlspecialchars($edit_data['namacustomer']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" required>
+                            <input type="text" id="namacustomer" name="namacustomer" value="<?= htmlspecialchars($edit_data['namacustomer']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" required>
                         </div>
                     </div>
 
@@ -216,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php if ($mode_edit): ?>
                     <div class="mt-4">
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Status Customer</label>
-                        <select name="statuscustomer" class="w-full border border-gray-300 px-3 py-2 rounded bg-white">
+                        <select id="statuscustomer" name="statuscustomer" class="w-full border border-gray-300 px-3 py-2 rounded bg-white">
                             <option value="Aktif" <?= strtolower($edit_data['statuscustomer']) == 'aktif' ? 'selected' : '' ?>>Aktif</option>
                             <option value="Tidak Aktif" <?= strtolower($edit_data['statuscustomer']) == 'tidak aktif' ? 'selected' : '' ?>>Tidak Aktif</option>
                         </select>
@@ -298,6 +298,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
     </div>
 </div>
+
+<script>
+    const modeEditJS = <?= json_encode($mode_edit) ?>;
+
+    function konfirmasiCustomer() {
+        const nama = document.getElementById('namacustomer').value;
+        const nik = document.getElementById('nikcustomer').value;
+
+        if (!nama || !nik) return true;
+
+        let pesan = "";
+
+        if (modeEditJS) {
+            const status = document.getElementById('statuscustomer').value;
+            pesan = `KONFIRMASI PERUBAHAN PROFIL CUSTOMER:\n\n• Nama Lengkap : ${nama}\n• NIK Customer : ${nik}\n• Status : ${status}\n\nApakah data perubahan profil di atas sudah benar?`;
+        } else {
+            const kostSelect = document.getElementById('id_kost');
+            const kamarSelect = document.getElementById('id_kamar');
+            if (kostSelect.value === "" || kamarSelect.selectedIndex <= 0) return true;
+
+            const namaKost = kostSelect.options[kostSelect.selectedIndex].text;
+            const nomorKamar = kamarSelect.options[kamarSelect.selectedIndex].text;
+            const tglMulai = document.getElementById('mulaisewa').value;
+            const jenisSewa = document.getElementById('jenissewa').value;
+            const durasi = document.getElementById('durasi').value;
+            const diskon = document.getElementById('diskontransaksi').value || 0;
+            const total = document.getElementById('total_harga_hidden').value;
+
+            const totalRp = parseInt(total).toLocaleString('id-ID');
+            const diskonRp = parseInt(diskon).toLocaleString('id-ID');
+
+            pesan = `KONFIRMASI PENDAFTARAN & SEWA BARU:\n\n[Data Pribadi]\n• Nama : ${nama}\n• NIK : ${nik}\n\n[Rincian Sewa]\n• Properti : ${namaKost}\n• Alokasi : ${nomorKamar}\n• Tgl Mulai : ${tglMulai}\n• Kontrak : ${durasi} ${jenisSewa}\n• Potongan : Rp ${diskonRp}\n• Total Bayar : Rp ${totalRp}\n\nApakah rincian pendaftaran ini sudah benar?`;
+        }
+        return confirm(pesan);
+    }
+</script>
 
 <?php if (!$mode_edit): ?>
 <script>
