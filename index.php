@@ -5,14 +5,11 @@ require 'header.php';
 // ==============================================================================
 // 1. SKRIP SILUMAN (AUTO-UPDATE STATUS JATUH TEMPO)
 // ==============================================================================
-// Cari transaksi yang masa sewanya SUDAH HABIS (habissewa < hari ini) 
-// DAN status customernya masih 'Aktif'
 $stmt_cek_expired = $koneksi->query("
     SELECT t.id_kamar, t.id_customer 
     FROM table_transaksi t
     JOIN table_customer c ON t.id_customer = c.id_customer
     WHERE t.habissewa < CURDATE() AND c.statuscustomer = 'Aktif'
-    -- Ambil transaksi terakhir untuk tiap customer agar tidak salah update
     AND t.id_transaksi = (SELECT MAX(id_transaksi) FROM table_transaksi WHERE id_customer = t.id_customer)
 ");
 $expired_data = $stmt_cek_expired->fetchAll(PDO::FETCH_ASSOC);
@@ -30,25 +27,51 @@ if (!empty($expired_data)) {
         $koneksi->commit();
     } catch (Exception $e) {
         $koneksi->rollBack();
-        // Gagal update siluman, abaikan (akan dicoba lagi saat refresh)
     }
 }
 // ==============================================================================
-
 
 // 2. AMBIL DATA USER AKTIF
 $stmt_user = $koneksi->prepare("SELECT username FROM table_user WHERE id = ?");
 $stmt_user->execute([$_SESSION['user_id']]);
 $user_aktif = $stmt_user->fetchColumn();
 
-// 3. KALKULASI STATISTIK PROPERTI
-$total_kost = $koneksi->query("SELECT COUNT(*) FROM table_kost")->fetchColumn();
-$total_kamar = $koneksi->query("SELECT COUNT(*) FROM table_kamar")->fetchColumn();
-$kamar_isi = $koneksi->query("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) = 'isi' OR LOWER(status_kamar) = 'terisi'")->fetchColumn();
-$kamar_kosong = $koneksi->query("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) = 'kosong'")->fetchColumn();
+// ==============================================================================
+// 3. LOGIKA FILTER PER CABANG / LOKASI KOST
+// ==============================================================================
+// Ambil semua daftar kost untuk dropdown
+$data_lokasi_kost = $koneksi->query("SELECT id_kost, nama_kost FROM table_kost ORDER BY nama_kost ASC")->fetchAll(PDO::FETCH_ASSOC);
 
+$filter_kost = $_GET['filter_kost'] ?? '';
+$param_filter = [];
+$where_kamar = "";
+$where_transaksi = "";
+$where_pengeluaran = "";
 
-// 4. QUERY PERINGATAN JATUH TEMPO MENDATANG (WARNING)
+if (!empty($filter_kost)) {
+    $where_kamar = " AND id_kost = ?";
+    $where_transaksi = " AND k.id_kost = ?";
+    $where_pengeluaran = " WHERE id_kost = ?";
+    $param_filter = [$filter_kost];
+}
+
+// 4. KALKULASI STATISTIK PROPERTI (DINAMIS DENGAN FILTER)
+$total_kost_global = $koneksi->query("SELECT COUNT(*) FROM table_kost")->fetchColumn();
+$tampil_total_kost = empty($filter_kost) ? $total_kost_global : 1; // Jika difilter, tampilkan 1
+
+$stmt_kamar = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE 1=1 $where_kamar");
+$stmt_kamar->execute($param_filter);
+$total_kamar = $stmt_kamar->fetchColumn();
+
+$stmt_isi = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) IN ('isi', 'terisi') $where_kamar");
+$stmt_isi->execute($param_filter);
+$kamar_isi = $stmt_isi->fetchColumn();
+
+$stmt_kosong = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) = 'kosong' $where_kamar");
+$stmt_kosong->execute($param_filter);
+$kamar_kosong = $stmt_kosong->fetchColumn();
+
+// 5. QUERY PERINGATAN JATUH TEMPO (DINAMIS DENGAN FILTER)
 $query_warning = "
     SELECT 
         c.id_customer, c.namacustomer, c.nohpcustomer,
@@ -63,6 +86,7 @@ $query_warning = "
     JOIN table_kost ko ON k.id_kost = ko.id_kost
     WHERE c.statuscustomer = 'Aktif' 
     AND t.habissewa >= CURDATE()
+    $where_transaksi
     AND t.id_transaksi = (SELECT MAX(id_transaksi) FROM table_transaksi WHERE id_customer = t.id_customer)
     HAVING 
         (total_durasi_hari > 20 AND sisa_hari <= 7) OR   -- Bulanan
@@ -70,10 +94,11 @@ $query_warning = "
         (total_durasi_hari <= 6 AND sisa_hari <= 1)      -- Harian
     ORDER BY sisa_hari ASC
 ";
-$stmt_warning = $koneksi->query($query_warning);
+$stmt_warning = $koneksi->prepare($query_warning);
+$stmt_warning->execute($param_filter);
 $data_warning = $stmt_warning->fetchAll(PDO::FETCH_ASSOC);
 
-// 4.5 QUERY CUSTOMER BELUM LUNAS
+// 6. QUERY CUSTOMER BELUM LUNAS (DINAMIS DENGAN FILTER)
 $query_belum_lunas = "
     SELECT 
         c.id_customer, c.namacustomer, c.nohpcustomer,
@@ -84,36 +109,57 @@ $query_belum_lunas = "
     JOIN table_kamar k ON t.id_kamar = k.id_kamar
     JOIN table_kost ko ON k.id_kost = ko.id_kost
     WHERE t.status_bayar = 'Belum Lunas'
+    $where_transaksi
     ORDER BY t.tanggaltransaksi DESC
 ";
-$stmt_belum_lunas = $koneksi->query($query_belum_lunas);
+$stmt_belum_lunas = $koneksi->prepare($query_belum_lunas);
+$stmt_belum_lunas->execute($param_filter);
 $data_belum_lunas = $stmt_belum_lunas->fetchAll(PDO::FETCH_ASSOC);
 
-
-// 5. KALKULASI KEUANGAN (PEMASUKAN & PENGELUARAN)
-// Menggunakan jumlah_bayar agar Cashflow merepresentasikan uang riil
-$stmt_in = $koneksi->query("SELECT SUM(jumlah_bayar) FROM table_transaksi");
+// 7. KALKULASI KEUANGAN (DINAMIS DENGAN FILTER)
+$stmt_in = $koneksi->prepare("SELECT SUM(t.jumlah_bayar) FROM table_transaksi t JOIN table_kamar k ON t.id_kamar = k.id_kamar WHERE 1=1 $where_transaksi");
+$stmt_in->execute($param_filter);
 $total_pemasukan = $stmt_in->fetchColumn() ?: 0;
 
-$stmt_out = $koneksi->query("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran");
+$stmt_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran $where_pengeluaran");
+$stmt_out->execute($param_filter);
 $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 
 $saldo_bersih = $total_pemasukan - $total_pengeluaran;
-
 ?>
 
-<div class="mb-8">
-    <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Selamat datang, <span class="text-yellow-600 capitalize"><?= htmlspecialchars($user_aktif) ?></span>!</h1>
-    <p class="text-gray-500 mt-2 text-sm">Berikut adalah ringkasan performa dan statistik properti Kost Sun Anda saat ini.</p>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+    <div>
+        <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Selamat datang, <span class="text-yellow-600 capitalize"><?= htmlspecialchars($user_aktif) ?></span>!</h1>
+        <p class="text-gray-500 mt-2 text-sm">Berikut adalah ringkasan performa dan statistik properti Kost Sun Anda saat ini.</p>
+    </div>
+    
+    <div class="w-full md:w-auto">
+        <form action="index.php" method="GET" class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+            </div>
+            <select name="filter_kost" onchange="this.form.submit()" class="block w-full md:w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
+                <option value="">Semua Lokasi Kost (Global)</option>
+                <?php foreach($data_lokasi_kost as $lk): ?>
+                    <option value="<?= $lk['id_kost'] ?>" <?= ($filter_kost == $lk['id_kost']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($lk['nama_kost']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+    </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-        <p class="text-sm font-semibold text-gray-500 mb-1">Total Lokasi Kost</p>
-        <p class="text-3xl font-black text-gray-800"><?= $total_kost ?> <span class="text-sm font-medium text-gray-400">Properti</span></p>
+        <p class="text-sm font-semibold text-gray-500 mb-1">Total Lokasi Dipantau</p>
+        <p class="text-3xl font-black text-gray-800"><?= $tampil_total_kost ?> <span class="text-sm font-medium text-gray-400">Properti</span></p>
     </div>
     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-        <p class="text-sm font-semibold text-gray-500 mb-1">Total Keseluruhan Kamar</p>
+        <p class="text-sm font-semibold text-gray-500 mb-1">Total Kapasitas Kamar</p>
         <p class="text-3xl font-black text-gray-800"><?= $total_kamar ?> <span class="text-sm font-medium text-gray-400">Pintu</span></p>
     </div>
     <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
@@ -123,6 +169,22 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
     <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
         <p class="text-sm font-semibold text-gray-500 mb-1">Kamar Kosong</p>
         <p class="text-3xl font-black text-red-600"><?= $kamar_kosong ?> <span class="text-sm font-medium text-red-400">Pintu</span></p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+        <h3 class="w-full text-left font-bold text-gray-700 mb-4 border-b pb-2">Rasio Okupansi Kamar</h3>
+        <div class="relative w-full max-w-[200px] aspect-square">
+            <canvas id="occupancyChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2 flex flex-col justify-center">
+        <h3 class="w-full text-left font-bold text-gray-700 mb-4 border-b pb-2">Analisis Arus Kas Terkini</h3>
+        <div class="relative w-full h-[200px]">
+            <canvas id="cashflowChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -195,8 +257,8 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
             </thead>
             <tbody class="divide-y divide-orange-100">
                 <?php foreach ($data_belum_lunas as $bl): 
-                    $total_tagihan = $bl['jumlahtransaksi'] - $bl['diskontransaksi'] + $bl['jumlah_charge'];
-                    $kurang_bayar = $total_tagihan - $bl['jumlah_bayar'];
+                    $tot_tagihan = $bl['jumlahtransaksi'] - $bl['diskontransaksi'] + $bl['jumlah_charge'];
+                    $krg_bayar = $tot_tagihan - $bl['jumlah_bayar'];
                 ?>
                 <tr class="hover:bg-orange-100 transition-colors">
                     <td class="py-3 px-2">
@@ -208,8 +270,8 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
                         <p class="text-xs text-gray-600">Kamar <?= htmlspecialchars($bl['nomor_kamar']) ?></p>
                     </td>
                     <td class="py-3 px-2 text-right">
-                        <p class="font-black text-red-600">- <?= number_format($kurang_bayar, 0, ',', '.') ?></p>
-                        <p class="text-[10px] text-gray-500 font-semibold mt-0.5">Total Tagihan: <?= number_format($total_tagihan, 0, ',', '.') ?></p>
+                        <p class="font-black text-red-600">- <?= number_format($krg_bayar, 0, ',', '.') ?></p>
+                        <p class="text-[10px] text-gray-500 font-semibold mt-0.5">Total Tagihan: <?= number_format($tot_tagihan, 0, ',', '.') ?></p>
                     </td>
                     <td class="py-3 px-2 text-center">
                         <a href="keuangan.php?status_filter=Belum+Lunas" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition-colors">
@@ -225,13 +287,13 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 <?php endif; ?>
 
 <div class="mt-8 mb-6">
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
         <h2 class="text-xl font-bold text-gray-800">Ringkasan Arus Kas</h2>
-        <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold">Buka Modul Keuangan &rarr;</a>
+        <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold bg-blue-50 px-3 py-1 rounded-full">Buka Buku Besar &rarr;</a>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pemasukan (Telah Dibayar)</p>
+            <p class="text-sm font-semibold text-gray-500 mb-1">Pemasukan (Telah Dibayar)</p>
             <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></p>
         </div>
         <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
@@ -244,5 +306,86 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Data PHP yang di-inject ke JS
+    const kmrIsi = <?= $kamar_isi ?>;
+    const kmrKosong = <?= $kamar_kosong ?>;
+    const kasMasuk = <?= $total_pemasukan ?>;
+    const kasKeluar = <?= $total_pengeluaran ?>;
+
+    // 1. Inisialisasi Chart Okupansi (Donut)
+    const ctxOcc = document.getElementById('occupancyChart').getContext('2d');
+    new Chart(ctxOcc, {
+        type: 'doughnut',
+        data: {
+            labels: ['Terisi', 'Kosong'],
+            datasets: [{
+                data: [kmrIsi, kmrKosong],
+                backgroundColor: ['#16a34a', '#dc2626'], // text-green-600, text-red-600
+                hoverOffset: 4,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: {family: 'sans-serif', weight: 'bold'} } }
+            },
+            cutout: '70%'
+        }
+    });
+
+    // 2. Inisialisasi Chart Arus Kas (Bar Horizontal)
+    const ctxCash = document.getElementById('cashflowChart').getContext('2d');
+    new Chart(ctxCash, {
+        type: 'bar',
+        data: {
+            labels: ['Arus Kas'],
+            datasets: [
+                {
+                    label: 'Pemasukan',
+                    data: [kasMasuk],
+                    backgroundColor: '#16a34a',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Pengeluaran',
+                    data: [kasKeluar],
+                    backgroundColor: '#dc2626',
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y', // Membuat bar menjadi horizontal (kiri ke kanan)
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: {family: 'sans-serif', weight: 'bold'} } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let value = context.raw;
+                            return ' Rp ' + value.toLocaleString('id-ID');
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        callback: function(value) { return 'Rp ' + (value/1000000) + 'M'; }
+                    }
+                },
+                y: { grid: { display: false }, display: false } // Sembunyikan label sumbu Y agar bersih
+            }
+        }
+    });
+});
+</script>
 
 <?php require 'footer.php'; ?>
