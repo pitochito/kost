@@ -59,18 +59,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan_error = "NIK dan Nama Customer wajib diisi!";
     } else {
         
-        // PENGAMANAN FOLDER: Buat folder uploads jika belum ada (untuk testing lokal)
+        // PENGAMANAN FOLDER: Buat folder uploads jika belum ada
         if (!is_dir('uploads')) {
             mkdir('uploads', 0777, true);
         }
 
-        // PROSES UPLOAD KE FOLDER "uploads" (Sesuai Railway Volume)
+        // PROSES UPLOAD
         $nama_ktp = $_POST['fotoktpcustomer_lama'] ?? '';
         if (isset($_FILES['fotoktpcustomer']) && $_FILES['fotoktpcustomer']['error'] === UPLOAD_ERR_OK) {
             $ext_ktp = pathinfo($_FILES['fotoktpcustomer']['name'], PATHINFO_EXTENSION);
             $nama_ktp = 'KTP_' . time() . '_' . rand(100,999) . '.' . $ext_ktp;
             move_uploaded_file($_FILES['fotoktpcustomer']['tmp_name'], 'uploads/' . $nama_ktp);
-            // Hapus file lama di folder uploads
             if ($mode_edit && !empty($_POST['fotoktpcustomer_lama']) && file_exists('uploads/' . $_POST['fotoktpcustomer_lama'])) { 
                 unlink('uploads/' . $_POST['fotoktpcustomer_lama']); 
             }
@@ -81,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ext_selfie = pathinfo($_FILES['fotoselfiecustomer']['name'], PATHINFO_EXTENSION);
             $nama_selfie = 'SELFIE_' . time() . '_' . rand(100,999) . '.' . $ext_selfie;
             move_uploaded_file($_FILES['fotoselfiecustomer']['tmp_name'], 'uploads/' . $nama_selfie);
-            // Hapus file lama di folder uploads
             if ($mode_edit && !empty($_POST['fotoselfiecustomer_lama']) && file_exists('uploads/' . $_POST['fotoselfiecustomer_lama'])) { 
                 unlink('uploads/' . $_POST['fotoselfiecustomer_lama']); 
             }
@@ -91,11 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $koneksi->beginTransaction();
 
             if (!empty($id_cust_post)) {
-                // UPDATE CUSTOMER (Menggunakan 'id' sesuai db_kost.dump)
+                // UPDATE CUSTOMER
                 $stmt = $koneksi->prepare("UPDATE table_customer SET nikcustomer=?, namacustomer=?, kotaasalcustomer=?, alamatcustomer=?, nohpcustomer=?, namakontakdarurat=?, kontakdarurat=?, statuscustomer=?, fotoktpcustomer=?, fotoselfiecustomer=?, id=? WHERE id_customer=?");
                 $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_user_aktif, $id_cust_post]);
             } else {
-                // INSERT CUSTOMER BARU (Menggunakan 'id' sesuai db_kost.dump)
+                // INSERT CUSTOMER BARU
                 $stmt = $koneksi->prepare("INSERT INTO table_customer (nikcustomer, namacustomer, kotaasalcustomer, alamatcustomer, nohpcustomer, namakontakdarurat, kontakdarurat, statuscustomer, fotoktpcustomer, fotoselfiecustomer, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$nik, $nama, $kota, $alamat, $nohp, $nama_darurat, $kontak_darurat, $status, $nama_ktp, $nama_selfie, $id_user_aktif]);
                 $new_customer_id = $koneksi->lastInsertId();
@@ -104,19 +102,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mulaisewa = $_POST['mulaisewa'];
                 $jenissewa = $_POST['jenissewa'];
                 $durasi = (int)$_POST['durasi'];
-                $diskon = (int)str_replace('.', '', $_POST['diskontransaksi']);
-                $total_harga = (int)str_replace('.', '', $_POST['total_harga_hidden']); 
                 
+                // Variabel Keuangan
+                $diskon = (int)$_POST['diskontransaksi'];
+                $charge = (int)$_POST['jumlah_charge'];
+                $total_harga = (int)$_POST['total_harga_hidden']; // Grand total ((tarif*durasi) - diskon + charge)
+                $bayar = (int)$_POST['jumlah_bayar'];
+                
+                $status_bayar = ($bayar >= $total_harga) ? 'Lunas' : 'Belum Lunas';
+
+                // Kalkulasi Tanggal Habis Sewa
                 $date_obj = new DateTime($mulaisewa);
                 if ($jenissewa == 'Bulanan') { $date_obj->modify("+$durasi month"); }
                 elseif ($jenissewa == 'Mingguan') { $days = $durasi * 7; $date_obj->modify("+$days days"); }
                 elseif ($jenissewa == 'Harian') { $date_obj->modify("+$durasi days"); }
                 $habissewa = $date_obj->format('Y-m-d');
 
-                // INSERT TRANSAKSI SEWA BARU (Menggunakan 'id' sesuai db_kost.dump)
-                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?)");
-                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $id_kamar, $new_customer_id, $id_user_aktif]);
+                // INSERT TRANSAKSI SEWA BARU 
+                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlah_charge, jumlahtransaksi, jumlah_bayar, status_bayar, tanggal_bayar, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?)");
+                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $total_harga, $bayar, $status_bayar, $id_kamar, $new_customer_id, $id_user_aktif]);
 
+                // UPDATE STATUS KAMAR
                 $stmt_kamar_update = $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?");
                 $stmt_kamar_update->execute([$id_kamar]);
             }
@@ -147,8 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded shadow-sm text-sm font-medium"><?= $pesan_error ?></div>
         <?php endif; ?>
 
-        <form action="form_customer.php<?= $mode_edit ? '?edit='.$edit_id : '' ?>" method="POST" enctype="multipart/form-data" 
-              onsubmit="return konfirmasiCustomer();">
+        <form action="form_customer.php<?= $mode_edit ? '?edit='.$edit_id : '' ?>" method="POST" enctype="multipart/form-data" onsubmit="return konfirmasiCustomer();">
             <input type="hidden" name="id_customer" value="<?= htmlspecialchars($edit_id) ?>">
             
             <div class="flex flex-col lg:flex-row gap-8">
@@ -249,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Tanggal Mulai (Date Picker)</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Tanggal Mulai</label>
                             <input type="date" name="mulaisewa" id="mulaisewa" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white" required>
                         </div>
                         <div>
@@ -265,13 +270,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Durasi Sewa</label>
-                            <select name="durasi" id="durasi" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white" required>
-                                </select>
+                            <select name="durasi" id="durasi" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white" required></select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Diskon (Rp)</label>
-                            <input type="number" name="diskontransaksi" id="diskontransaksi" value="0" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
+                            <input type="number" name="diskontransaksi" id="diskontransaksi" value="0" min="0" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
                         </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Biaya Tambahan / Charge (Rp)</label>
+                        <input type="number" name="jumlah_charge" id="jumlah_charge" value="0" min="0" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
                     </div>
 
                     <div class="bg-black text-white p-4 rounded-lg mt-4 shadow-md">
@@ -285,6 +294,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="hidden" name="total_harga_hidden" id="total_harga_hidden" value="0">
                         </div>
                     </div>
+                    
+                    <div class="bg-green-50 border border-green-200 p-4 rounded-lg mt-2">
+                        <label class="block text-sm font-bold text-green-800 mb-1">Nominal Telah Dibayar (Rp)</label>
+                        <input type="number" name="jumlah_bayar" id="jumlah_bayar" value="0" min="0" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg text-gray-800">
+                        <p class="text-xs text-green-700 mt-1">*Sistem otomatis menetapkan status <strong>Lunas / Belum Lunas</strong> sesuai nominal bayar vs total tagihan.</p>
+                    </div>
+
                 </div>
                 <?php endif; ?>
             </div>
@@ -324,12 +340,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const jenisSewa = document.getElementById('jenissewa').value;
             const durasi = document.getElementById('durasi').value;
             const diskon = document.getElementById('diskontransaksi').value || 0;
+            const charge = document.getElementById('jumlah_charge').value || 0;
             const total = document.getElementById('total_harga_hidden').value;
+            const bayar = document.getElementById('jumlah_bayar').value || 0;
 
             const totalRp = parseInt(total).toLocaleString('id-ID');
             const diskonRp = parseInt(diskon).toLocaleString('id-ID');
+            const chargeRp = parseInt(charge).toLocaleString('id-ID');
+            const bayarRp = parseInt(bayar).toLocaleString('id-ID');
+            
+            const statusVisual = (parseInt(bayar) >= parseInt(total)) ? "LUNAS" : "BELUM LUNAS";
 
-            pesan = `KONFIRMASI PENDAFTARAN & SEWA BARU:\n\n[Data Pribadi]\n• Nama : ${nama}\n• NIK : ${nik}\n\n[Rincian Sewa]\n• Properti : ${namaKost}\n• Alokasi : ${nomorKamar}\n• Tgl Mulai : ${tglMulai}\n• Kontrak : ${durasi} ${jenisSewa}\n• Potongan : Rp ${diskonRp}\n• Total Bayar : Rp ${totalRp}\n\nApakah rincian pendaftaran ini sudah benar?`;
+            pesan = `KONFIRMASI PENDAFTARAN & SEWA BARU:\n\n[Data Pribadi]\n• Nama : ${nama}\n• NIK : ${nik}\n\n[Rincian Sewa]\n• Properti : ${namaKost}\n• Alokasi : ${nomorKamar}\n• Tgl Mulai : ${tglMulai}\n• Kontrak : ${durasi} ${jenisSewa}\n• Potongan : Rp ${diskonRp}\n• Biaya Charge : Rp ${chargeRp}\n\n[Ringkasan Pembayaran]\n• TOTAL TAGIHAN : Rp ${totalRp}\n• NOMINAL DIBAYAR : Rp ${bayarRp}\n• STATUS SISTEM : ${statusVisual}\n\nApakah rincian pendaftaran ini sudah benar?`;
         }
         return confirm(pesan);
     }
@@ -343,6 +365,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const jenissewaSelect = document.getElementById('jenissewa');
     const durasiSelect = document.getElementById('durasi');
     const diskonInput = document.getElementById('diskontransaksi');
+    const chargeInput = document.getElementById('jumlah_charge');
+    const bayarInput = document.getElementById('jumlah_bayar');
     const mulaiSewaInput = document.getElementById('mulaisewa');
     const displayHabisSewa = document.getElementById('display_habissewa');
     const displayTotal = document.getElementById('display_total');
@@ -395,6 +419,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     jenissewaSelect.addEventListener('change', updateOpsiDurasi);
     updateOpsiDurasi(); 
+    
+    // Flag untuk deteksi apakah input bayar sudah diisi manual
+    bayarInput.addEventListener('input', () => {
+        bayarInput.dataset.manual = 'true';
+    });
 
     function kalkulasiSemua() {
         if (kamarSelect.selectedIndex > 0) {
@@ -407,11 +436,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         const durasi = parseInt(durasiSelect.value) || 1;
         const diskon = parseInt(diskonInput.value) || 0;
-        let total = (tarifAktif * durasi) - diskon;
+        const charge = parseInt(chargeInput.value) || 0;
+        
+        let total = (tarifAktif * durasi) - diskon + charge;
         if (total < 0) total = 0;
         
         displayTotal.textContent = 'Rp ' + total.toLocaleString('id-ID');
         hiddenTotal.value = total;
+        
+        // Auto-fill jumlah bayar dengan total HANYA jika admin belum mengeditnya secara manual
+        if (bayarInput.dataset.manual !== 'true') {
+            bayarInput.value = total;
+        }
 
         const tglMulai = mulaiSewaInput.value;
         if (tglMulai) {
@@ -427,6 +463,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     kamarSelect.addEventListener('change', kalkulasiSemua);
     durasiSelect.addEventListener('change', kalkulasiSemua);
     diskonInput.addEventListener('input', kalkulasiSemua);
+    chargeInput.addEventListener('input', kalkulasiSemua);
     mulaiSewaInput.addEventListener('change', kalkulasiSemua);
     
     const hariIni = new Date().toISOString().split('T')[0];

@@ -33,8 +33,11 @@ $edit_data = [
     'namatransaksi' => 'Koreksi Transaksi Sewa',
     'mulaisewa' => date('Y-m-d'),
     'habissewa' => date('Y-m-d', strtotime('+1 month')),
+    'jumlahtransaksi' => '',
     'diskontransaksi' => '0',
-    'jumlahtransaksi' => ''
+    'jumlah_charge' => '0',
+    'jumlah_bayar' => '',
+    'tanggal_bayar' => date('Y-m-d')
 ];
 
 // TANGKAP DATA JIKA MODE EDIT
@@ -63,23 +66,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mulaisewa = $_POST['mulaisewa'];
     $habissewa = $_POST['habissewa'];
     
-    $diskontransaksi = (int)str_replace('.', '', $_POST['diskontransaksi']);
-    $jumlahtransaksi = (int)str_replace('.', '', $_POST['jumlahtransaksi']);
+    // Variabel Keuangan Manual
+    $jumlahtransaksi = (int)$_POST['jumlahtransaksi'];
+    $diskontransaksi = (int)$_POST['diskontransaksi'];
+    $jumlah_charge = (int)$_POST['jumlah_charge'];
+    $jumlah_bayar = (int)$_POST['jumlah_bayar'];
+    $tanggal_bayar = $_POST['tanggal_bayar'];
 
     // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
     $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+
+    // Kalkulasi Status Bayar Otomatis
+    $total_tagihan = $jumlahtransaksi - $diskontransaksi + $jumlah_charge;
+    $status_bayar = ($jumlah_bayar >= $total_tagihan) ? 'Lunas' : 'Belum Lunas';
 
     if (empty($id_customer) || empty($id_kamar) || empty($namatransaksi) || empty($_POST['jumlahtransaksi'])) {
         $pesan_error = "Semua field yang bertanda * wajib diisi secara lengkap!";
     } else {
         if (!empty($id_trans_post)) {
             // UPDATE: Menyimpan 'id' pengubah terakhir (sesuai db_kost)
-            $stmt = $koneksi->prepare("UPDATE table_transaksi SET id_customer=?, id_kamar=?, tanggaltransaksi=?, namatransaksi=?, mulaisewa=?, habissewa=?, diskontransaksi=?, jumlahtransaksi=?, id=? WHERE id_transaksi=?");
-            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_user_aktif, $id_trans_post]);
+            $stmt = $koneksi->prepare("UPDATE table_transaksi SET id_customer=?, id_kamar=?, tanggaltransaksi=?, namatransaksi=?, mulaisewa=?, habissewa=?, jumlahtransaksi=?, diskontransaksi=?, jumlah_charge=?, jumlah_bayar=?, status_bayar=?, tanggal_bayar=?, id=? WHERE id_transaksi=?");
+            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $jumlahtransaksi, $diskontransaksi, $jumlah_charge, $jumlah_bayar, $status_bayar, $tanggal_bayar, $id_user_aktif, $id_trans_post]);
         } else {
             // INSERT: Menyimpan 'id' pembuat (sesuai db_kost)
-            $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, diskontransaksi, jumlahtransaksi, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $diskontransaksi, $jumlahtransaksi, $id_user_aktif]);
+            $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, jumlahtransaksi, diskontransaksi, jumlah_charge, jumlah_bayar, status_bayar, tanggal_bayar, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $jumlahtransaksi, $diskontransaksi, $jumlah_charge, $jumlah_bayar, $status_bayar, $tanggal_bayar, $id_user_aktif]);
         }
         header("Location: keuangan.php");
         exit;
@@ -102,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?= $mode_edit ? 'Edit Riwayat Transaksi' : 'Input Transaksi Manual' ?>
         </h2>
         <p class="text-gray-500 text-sm mb-6 border-b pb-4">
-            Alat ini mengabaikan otomatisasi harga. Gunakan secara teliti untuk mengoreksi pembukuan (backdate) tanpa perlu mendaftarkan customer baru.
+            Alat ini mengabaikan otomatisasi harga. Gunakan secara teliti untuk mengoreksi pembukuan (backdate) atau cicilan tanpa melalui prosedur normal.
         </p>
 
         <?php if ($pesan_error): ?>
@@ -139,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5 bg-gray-50 p-4 rounded border border-gray-200">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Tgl Transaksi Bayar *</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Tgl Terjadinya Transaksi *</label>
                     <input type="date" id="tanggaltransaksi" name="tanggaltransaksi" value="<?= htmlspecialchars($edit_data['tanggaltransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
                 </div>
                 <div>
@@ -157,19 +168,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="text" id="namatransaksi" name="namatransaksi" value="<?= htmlspecialchars($edit_data['namatransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500" required>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Diskon Diberikan (Rp)</label>
-                    <input type="number" id="diskontransaksi" name="diskontransaksi" value="<?= htmlspecialchars($edit_data['diskontransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+            <div class="bg-blue-50 border border-blue-200 p-5 rounded-lg space-y-4">
+                <h3 class="font-bold text-blue-800 border-b border-blue-200 pb-2">Rincian Tagihan</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Harga Dasar (Tarif x Durasi) *</label>
+                        <input type="number" id="jumlahtransaksi" name="jumlahtransaksi" value="<?= htmlspecialchars($edit_data['jumlahtransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" required placeholder="Cth: 1500000">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Diskon (Rp)</label>
+                        <input type="number" id="diskontransaksi" name="diskontransaksi" value="<?= htmlspecialchars($edit_data['diskontransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Biaya Tambahan / Charge (Rp)</label>
+                        <input type="number" id="jumlah_charge" name="jumlah_charge" value="<?= htmlspecialchars($edit_data['jumlah_charge']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Total Tagihan Final (Rp) *</label>
-                    <input type="number" id="jumlahtransaksi" name="jumlahtransaksi" value="<?= htmlspecialchars($edit_data['jumlahtransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-bold text-green-700" required placeholder="Cth: 1500000">
+            </div>
+
+            <div class="bg-green-50 border border-green-200 p-5 rounded-lg space-y-4 mt-2">
+                <h3 class="font-bold text-green-800 border-b border-green-200 pb-2">Pembayaran & Arus Kas</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Nominal Telah Dibayar (Rp) *</label>
+                        <input type="number" id="jumlah_bayar" name="jumlah_bayar" value="<?= htmlspecialchars($edit_data['jumlah_bayar']) ?>" class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg text-gray-800" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Tgl Pembayaran Terakhir *</label>
+                        <input type="date" id="tanggal_bayar" name="tanggal_bayar" value="<?= htmlspecialchars($edit_data['tanggal_bayar']) ?>" class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required>
+                    </div>
                 </div>
             </div>
 
             <div class="flex gap-4 mt-8 border-t pt-6">
-                <button type="submit" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-10 rounded-md transition-colors shadow-sm">
+                <button type="submit" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-10 rounded-md transition-colors shadow-sm text-lg">
                     <?= $mode_edit ? 'Simpan Pembaruan Transaksi' : 'Sisipkan Transaksi Manual' ?>
                 </button>
             </div>
@@ -183,33 +217,35 @@ const modeEditTransJS = <?= json_encode($mode_edit) ?>;
 function konfirmasiTransaksi() {
     const custSelect = document.getElementById('id_customer');
     const kamarSelect = document.getElementById('id_kamar');
-    const tglTrans = document.getElementById('tanggaltransaksi').value;
-    const tglMulai = document.getElementById('mulaisewa').value;
-    const tglHabis = document.getElementById('habissewa').value;
-    const rincian = document.getElementById('namatransaksi').value;
-    const diskon = document.getElementById('diskontransaksi').value || 0;
-    const nominal = document.getElementById('jumlahtransaksi').value;
-
-    // Abaikan kustom dialog jika validasi internal HTML5 mendeteksi data kosong
-    if (custSelect.value === "" || kamarSelect.value === "" || !tglTrans || !tglMulai || !tglHabis || !rincian || !nominal) {
-        return true;
+    
+    // Abaikan jika data mandatory kosong (biarkan HTML5 validation bekerja)
+    if (custSelect.value === "" || kamarSelect.value === "" || !document.getElementById('jumlahtransaksi').value) {
+        return true; 
     }
 
     const customer = custSelect.options[custSelect.selectedIndex].text;
     const kamar = kamarSelect.options[kamarSelect.selectedIndex].text;
+    
+    const dasar = parseInt(document.getElementById('jumlahtransaksi').value) || 0;
+    const diskon = parseInt(document.getElementById('diskontransaksi').value) || 0;
+    const charge = parseInt(document.getElementById('jumlah_charge').value) || 0;
+    const bayar = parseInt(document.getElementById('jumlah_bayar').value) || 0;
+    
+    const totalTagihan = dasar - diskon + charge;
+    const statusSistem = (bayar >= totalTagihan) ? 'LUNAS' : 'BELUM LUNAS (Kekurangan: Rp ' + (totalTagihan - bayar).toLocaleString('id-ID') + ')';
 
-    const nominalRp = parseInt(nominal).toLocaleString('id-ID');
-    const diskonRp = parseInt(diskon).toLocaleString('id-ID');
+    const tglMulai = document.getElementById('mulaisewa').value;
+    const tglHabis = document.getElementById('habissewa').value;
     const aksi = modeEditTransJS ? 'PERUBAHAN' : 'PENYIMPANAN';
 
     const pesan = `KONFIRMASI ${aksi} TRANSAKSI MANUAL:\n\n` +
-                  `• Penyewa   : ${customer}\n` +
-                  `• Alokasi   : ${kamar}\n` +
-                  `• Tgl Bayar : ${tglTrans}\n` +
-                  `• Periode   : ${tglMulai} s/d ${tglHabis}\n` +
-                  `• Rincian   : ${rincian}\n` +
-                  `• Potongan  : Rp ${diskonRp}\n` +
-                  `• Total Kas : Rp ${nominalRp}\n\n` +
+                  `• Penyewa : ${customer}\n` +
+                  `• Alokasi : ${kamar}\n` +
+                  `• Periode : ${tglMulai} s/d ${tglHabis}\n\n` +
+                  `[FINANSIAL]\n` +
+                  `• Total Tagihan : Rp ${totalTagihan.toLocaleString('id-ID')}\n` +
+                  `• Total Dibayar : Rp ${bayar.toLocaleString('id-ID')}\n` +
+                  `• Status Sistem : ${statusSistem}\n\n` +
                   `Apakah kueri penyesuaian transaksi di atas sudah benar?`;
 
     return confirm(pesan);
