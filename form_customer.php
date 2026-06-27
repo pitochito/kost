@@ -103,13 +103,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $jenissewa = $_POST['jenissewa'];
                 $durasi = (int)$_POST['durasi'];
                 
-                // Variabel Keuangan
+                // Variabel Keuangan (PERBAIKAN LOGIKA)
+                $jumlahtransaksi = (int)$_POST['harga_dasar_hidden']; // Mengambil Harga Dasar (Tarif x Durasi)
                 $diskon = (int)$_POST['diskontransaksi'];
                 $charge = (int)$_POST['jumlah_charge'];
-                $total_harga = (int)$_POST['total_harga_hidden']; // Grand total ((tarif*durasi) - diskon + charge)
+                
+                // Kalkulasi ulang di backend untuk pengamanan
+                $total_tagihan_final = $jumlahtransaksi - $diskon + $charge; 
                 $bayar = (int)$_POST['jumlah_bayar'];
                 
-                $status_bayar = ($bayar >= $total_harga) ? 'Lunas' : 'Belum Lunas';
+                $status_bayar = ($bayar >= $total_tagihan_final) ? 'Lunas' : 'Belum Lunas';
 
                 // Kalkulasi Tanggal Habis Sewa
                 $date_obj = new DateTime($mulaisewa);
@@ -120,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // INSERT TRANSAKSI SEWA BARU 
                 $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlah_charge, jumlahtransaksi, jumlah_bayar, status_bayar, tanggal_bayar, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?)");
-                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $total_harga, $bayar, $status_bayar, $id_kamar, $new_customer_id, $id_user_aktif]);
+                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $jumlahtransaksi, $bayar, $status_bayar, $id_kamar, $new_customer_id, $id_user_aktif]);
 
                 // UPDATE STATUS KAMAR
                 $stmt_kamar_update = $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?");
@@ -291,6 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="flex justify-between items-end">
                             <span class="text-sm font-semibold">Total Tagihan:</span>
                             <span class="text-2xl font-black text-yellow-500" id="display_total">Rp 0</span>
+                            <input type="hidden" name="harga_dasar_hidden" id="harga_dasar_hidden" value="0">
                             <input type="hidden" name="total_harga_hidden" id="total_harga_hidden" value="0">
                         </div>
                     </div>
@@ -371,6 +375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const displayHabisSewa = document.getElementById('display_habissewa');
     const displayTotal = document.getElementById('display_total');
     const hiddenTotal = document.getElementById('total_harga_hidden');
+    const hiddenDasar = document.getElementById('harga_dasar_hidden');
 
     let tarifAktif = 0;
 
@@ -438,11 +443,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const diskon = parseInt(diskonInput.value) || 0;
         const charge = parseInt(chargeInput.value) || 0;
         
-        let total = (tarifAktif * durasi) - diskon + charge;
+        let hargaDasar = tarifAktif * durasi; // Nilai murni sebelum diutak-atik
+        let total = hargaDasar - diskon + charge; // Nilai penagihan riil
         if (total < 0) total = 0;
         
         displayTotal.textContent = 'Rp ' + total.toLocaleString('id-ID');
         hiddenTotal.value = total;
+        hiddenDasar.value = hargaDasar;
         
         // Auto-fill jumlah bayar dengan total HANYA jika admin belum mengeditnya secara manual
         if (bayarInput.dataset.manual !== 'true') {

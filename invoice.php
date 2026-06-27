@@ -40,8 +40,21 @@ if (!$invoice) {
 // Generate Nomor Invoice Unik
 $invoice_number = "INV/" . date('Y/m/d', strtotime($invoice['tanggaltransaksi'])) . "/" . str_pad($invoice['id_transaksi'], 4, '0', STR_PAD_LEFT);
 
-// Kalkulasi Harga Asli sebelum diskon
-$harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
+// ==========================================
+// KALKULASI KEUANGAN TERBARU
+// ==========================================
+$harga_dasar = (int)$invoice['jumlahtransaksi']; // Nilai tarif murni (Tarif x Durasi)
+$diskon = (int)$invoice['diskontransaksi'];
+$charge = (isset($invoice['jumlah_charge'])) ? (int)$invoice['jumlah_charge'] : 0;
+
+$total_tagihan = $harga_dasar - $diskon + $charge;
+$telah_dibayar = (isset($invoice['jumlah_bayar'])) ? (int)$invoice['jumlah_bayar'] : $total_tagihan; // Fallback jika data lama
+
+$kurang_bayar = $total_tagihan - $telah_dibayar;
+if ($kurang_bayar < 0) $kurang_bayar = 0;
+
+$status_bayar = (isset($invoice['status_bayar'])) ? $invoice['status_bayar'] : (($telah_dibayar >= $total_tagihan) ? 'Lunas' : 'Belum Lunas');
+$warna_status = ($status_bayar === 'Lunas') ? 'text-green-600' : 'text-red-600';
 ?>
 
 <!DOCTYPE html>
@@ -58,10 +71,34 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
             .no-print { display: none !important; }
             .print-border { border: 1px solid #e5e7eb !important; }
             .print-shadow-none { box-shadow: none !important; }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+        
+        /* Cap Air (Watermark) untuk Invoice Belum Lunas */
+        .watermark-container {
+            position: relative;
+            z-index: 1;
+        }
+        .watermark {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-35deg);
+            font-size: 7rem;
+            color: rgba(239, 68, 68, 0.08); /* Warna merah sangat tipis */
+            font-weight: 900;
+            z-index: -1;
+            pointer-events: none;
+            white-space: nowrap;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4 md:p-8 flex justify-center min-h-screen">
+<body class="bg-gray-100 p-4 md:p-8 flex justify-center min-h-screen relative overflow-x-hidden">
 
     <div class="max-w-3xl w-full">
         
@@ -73,8 +110,12 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
             </button>
         </div>
 
-        <div class="bg-white p-8 md:p-12 rounded-lg shadow-md print-shadow-none print-border">
+        <div class="bg-white p-8 md:p-12 rounded-lg shadow-md print-shadow-none print-border watermark-container overflow-hidden">
             
+            <?php if ($status_bayar === 'Belum Lunas'): ?>
+                <div class="watermark">BELUM LUNAS</div>
+            <?php endif; ?>
+
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b-2 border-gray-800 pb-6 mb-8">
                 <div class="flex items-center gap-4 mb-4 md:mb-0">
                     <img src="logo.jpg" alt="Logo" class="h-16 w-16 object-contain rounded bg-black p-1">
@@ -84,7 +125,9 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
                     </div>
                 </div>
                 <div class="text-left md:text-right">
-                    <h2 class="text-2xl font-bold text-gray-300 uppercase tracking-widest">INVOICE</h2>
+                    <h2 class="text-2xl font-bold text-gray-300 uppercase tracking-widest">
+                        <?= ($status_bayar === 'Belum Lunas') ? 'INVOICE / DP' : 'INVOICE' ?>
+                    </h2>
                     <p class="text-sm font-bold text-gray-800 mt-1"><?= $invoice_number ?></p>
                 </div>
             </div>
@@ -101,7 +144,7 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Detail Pembayaran:</h3>
                     <table class="w-full text-sm">
                         <tr>
-                            <td class="text-gray-500 py-1 md:text-right pr-4">Tanggal Bayar</td>
+                            <td class="text-gray-500 py-1 md:text-right pr-4">Tanggal Transaksi</td>
                             <td class="font-bold text-gray-800 text-right"><?= date('d F Y', strtotime($invoice['tanggaltransaksi'])) ?></td>
                         </tr>
                         <tr>
@@ -109,9 +152,17 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
                             <td class="font-bold text-gray-800 text-right"><?= htmlspecialchars($invoice['namatransaksi']) ?></td>
                         </tr>
                         <tr>
-                            <td class="text-gray-500 py-1 md:text-right pr-4">Status</td>
-                            <td class="font-bold text-green-600 text-right uppercase">Lunas</td>
+                            <td class="text-gray-500 py-1 md:text-right pr-4">Status Pembayaran</td>
+                            <td class="font-bold <?= $warna_status ?> text-right uppercase border-b-2 <?= ($status_bayar === 'Lunas') ? 'border-green-200' : 'border-red-200' ?>">
+                                <?= $status_bayar ?>
+                            </td>
                         </tr>
+                        <?php if (isset($invoice['tanggal_bayar']) && $invoice['tanggal_bayar'] != '0000-00-00'): ?>
+                        <tr>
+                            <td class="text-gray-400 text-xs py-1 md:text-right pr-4">Update Terakhir</td>
+                            <td class="font-semibold text-gray-500 text-xs text-right"><?= date('d M Y', strtotime($invoice['tanggal_bayar'])) ?></td>
+                        </tr>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>
@@ -120,7 +171,7 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
                 <thead>
                     <tr class="bg-gray-100 border-y border-gray-300">
                         <th class="py-3 px-4 text-sm font-bold text-gray-700">Deskripsi Properti & Masa Sewa</th>
-                        <th class="py-3 px-4 text-sm font-bold text-gray-700 text-right">Jumlah</th>
+                        <th class="py-3 px-4 text-sm font-bold text-gray-700 text-right">Jumlah (Rp)</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -129,44 +180,68 @@ $harga_asli = $invoice['jumlahtransaksi'] + $invoice['diskontransaksi'];
                             <p class="font-bold text-gray-800 text-lg"><?= htmlspecialchars($invoice['nama_kost']) ?> - Kamar <?= htmlspecialchars($invoice['nomor_kamar']) ?></p>
                             <p class="text-sm text-gray-500">Fasilitas: <?= htmlspecialchars($invoice['jenis_kamar']) ?></p>
                             <p class="text-sm text-gray-600 mt-2">
-                                <span class="font-semibold text-gray-700">Masa Sewa:</span> 
+                                <span class="font-semibold text-gray-700">Periode:</span> 
                                 <?= date('d M Y', strtotime($invoice['mulaisewa'])) ?> 
                                 <span class="mx-1 text-gray-400">&rarr;</span> 
                                 <?= date('d M Y', strtotime($invoice['habissewa'])) ?>
                             </p>
                         </td>
                         <td class="py-4 px-4 text-right font-semibold text-gray-800 align-top pt-5">
-                            Rp <?= number_format($harga_asli, 0, ',', '.') ?>
+                            <?= number_format($harga_dasar, 0, ',', '.') ?>
                         </td>
                     </tr>
                     
-                    <?php if ($invoice['diskontransaksi'] > 0): ?>
+                    <?php if ($diskon > 0): ?>
                     <tr>
-                        <td class="py-3 px-4 text-right text-sm font-semibold text-gray-600 italic">
-                            Diskon Diberikan
-                        </td>
-                        <td class="py-3 px-4 text-right font-semibold text-red-500">
-                            - Rp <?= number_format($invoice['diskontransaksi'], 0, ',', '.') ?>
-                        </td>
+                        <td class="py-3 px-4 text-right text-sm font-semibold text-gray-600 italic">Diskon</td>
+                        <td class="py-3 px-4 text-right font-semibold text-red-500">- <?= number_format($diskon, 0, ',', '.') ?></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if ($charge > 0): ?>
+                    <tr>
+                        <td class="py-3 px-4 text-right text-sm font-semibold text-gray-600 italic">Biaya Tambahan / Charge</td>
+                        <td class="py-3 px-4 text-right font-semibold text-gray-800">+ <?= number_format($charge, 0, ',', '.') ?></td>
                     </tr>
                     <?php endif; ?>
                 </tbody>
+                
                 <tfoot>
-                    <tr class="border-t-2 border-gray-800">
-                        <td class="py-4 px-4 text-right font-bold text-gray-800 text-lg uppercase tracking-wider">
-                            Total Dibayar
+                    <tr class="border-t-2 border-gray-800 bg-gray-50">
+                        <td class="py-3 px-4 text-right font-bold text-gray-800 text-sm uppercase tracking-wider">
+                            Total Tagihan Keseluruhan
                         </td>
-                        <td class="py-4 px-4 text-right font-black text-gray-900 text-2xl">
-                            Rp <?= number_format($invoice['jumlahtransaksi'], 0, ',', '.') ?>
+                        <td class="py-3 px-4 text-right font-black text-gray-900 text-xl">
+                            Rp <?= number_format($total_tagihan, 0, ',', '.') ?>
                         </td>
                     </tr>
+                    
+                    <tr class="bg-white">
+                        <td class="py-3 px-4 text-right font-bold text-green-700 text-sm uppercase tracking-wider border-b border-gray-200">
+                            Telah Dibayar (Uang Masuk)
+                        </td>
+                        <td class="py-3 px-4 text-right font-black text-green-700 text-xl border-b border-gray-200">
+                            Rp <?= number_format($telah_dibayar, 0, ',', '.') ?>
+                        </td>
+                    </tr>
+                    
+                    <?php if ($kurang_bayar > 0): ?>
+                    <tr class="bg-red-50">
+                        <td class="py-3 px-4 text-right font-bold text-red-700 text-sm uppercase tracking-wider border-b-2 border-red-200">
+                            SISA KURANG BAYAR
+                        </td>
+                        <td class="py-3 px-4 text-right font-black text-red-700 text-xl border-b-2 border-red-200">
+                            Rp <?= number_format($kurang_bayar, 0, ',', '.') ?>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                 </tfoot>
             </table>
 
             <div class="flex justify-between items-end mt-12 pt-8 border-t border-gray-200">
                 <div class="text-xs text-gray-400">
                     <p>Terima kasih telah mempercayakan akomodasi Anda pada Kost Sun.</p>
-                    <p>Dokumen ini adalah bukti pembayaran yang sah dan dicetak secara otomatis oleh sistem.</p>
+                    <p>Dokumen ini adalah bukti penagihan/pembayaran yang sah dan dicetak secara otomatis oleh sistem.</p>
                 </div>
                 <div class="text-center w-40">
                     <p class="text-sm font-bold text-gray-800 mb-8">Pihak Pengelola,</p>
