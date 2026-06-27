@@ -145,11 +145,17 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
-    <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center">
+    <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h3 class="font-bold text-green-800 flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Riwayat Pemasukan Sewa
         </h3>
+        
+        <?php if ($role_aktif === 'super admin'): ?>
+            <a href="form_transaksi.php" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow-sm transition-colors flex items-center gap-1">
+                + Tambah Transaksi Manual
+            </a>
+        <?php endif; ?>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse min-w-[950px]">
@@ -184,6 +190,10 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
                         </a>
                         
                         <?php if ($role_aktif === 'super admin'): ?>
+                            <a href="form_transaksi.php?edit=<?= $in['id_transaksi'] ?>" 
+                               class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">
+                                Edit
+                            </a>
                             <a href="keuangan.php?hapus_transaksi=<?= $in['id_transaksi'] ?>" 
                                onclick="return confirm('Apakah Anda yakin ingin menghapus catatan riwayat transaksi ini? Tindakan ini akan mempengaruhi total kalkulator arus kas.');" 
                                class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">
