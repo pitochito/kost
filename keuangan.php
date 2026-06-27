@@ -3,16 +3,40 @@ require 'koneksi.php';
 require 'header.php';
 
 $pesan_sukses = '';
-if (isset($_GET['pesan']) && $_GET['pesan'] == 'sukses_hapus') {
-    $pesan_sukses = "Data pengeluaran berhasil dihapus.";
+
+// Ambil pesan sukses dari URL jika ada
+if (isset($_GET['pesan'])) {
+    if ($_GET['pesan'] == 'sukses_hapus') {
+        $pesan_sukses = "Data pengeluaran berhasil dihapus.";
+    } elseif ($_GET['pesan'] == 'sukses_hapus_transaksi') {
+        $pesan_sukses = "Riwayat transaksi pemasukan berhasil dihapus.";
+    }
 }
 
-// PROSES HAPUS PENGELUARAN
+// ==========================================
+// 1. PROSES HAPUS PENGELUARAN
+// ==========================================
 if (isset($_GET['hapus'])) {
     $id_hapus = $_GET['hapus'];
     $stmt_hapus = $koneksi->prepare("DELETE FROM table_pengeluaran WHERE id_pengeluaran = ?");
     $stmt_hapus->execute([$id_hapus]);
     header("Location: keuangan.php?pesan=sukses_hapus");
+    exit;
+}
+
+// ==========================================
+// 2. PROSES HAPUS TRANSAKSI PEMASUKAN (KHUSUS SUPER ADMIN)
+// ==========================================
+if (isset($_GET['hapus_transaksi'])) {
+    if ($role_aktif !== 'super admin') {
+        echo "<script>alert('Akses Ditolak: Hanya Super Admin yang dapat menghapus riwayat transaksi.'); window.location.href='keuangan.php';</script>";
+        exit;
+    }
+    
+    $id_trans_hapus = $_GET['hapus_transaksi'];
+    $stmt_hapus_trans = $koneksi->prepare("DELETE FROM table_transaksi WHERE id_transaksi = ?");
+    $stmt_hapus_trans->execute([$id_trans_hapus]);
+    header("Location: keuangan.php?pesan=sukses_hapus_transaksi");
     exit;
 }
 
@@ -32,22 +56,20 @@ if (!empty($start_date) && !empty($end_date)) {
     $params = [$start_date, $end_date];
 }
 
-// 1. KALKULASI TOTAL PEMASUKAN
+// Kalkulasi Ringkasan Keuangan
 $query_in = "SELECT SUM(t.jumlahtransaksi) FROM table_transaksi t $where_transaksi";
 $stmt_in = $koneksi->prepare($query_in);
 $stmt_in->execute($params);
 $total_pemasukan = $stmt_in->fetchColumn() ?: 0;
 
-// 2. KALKULASI TOTAL PENGELUARAN
 $query_out = "SELECT SUM(p.jumlahpengeluaran) FROM table_pengeluaran p $where_pengeluaran";
 $stmt_out = $koneksi->prepare($query_out);
 $stmt_out->execute($params);
 $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 
-// 3. SALDO BERSIH
 $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
-// 4. AMBIL RINCIAN PEMASUKAN (TRANSAKSI SEWA)
+// Ambil Rincian Pemasukan
 $query_list_in = "
     SELECT t.*, c.namacustomer, k.nomor_kamar, ko.nama_kost
     FROM table_transaksi t
@@ -61,7 +83,7 @@ $stmt_list_in = $koneksi->prepare($query_list_in);
 $stmt_list_in->execute($params);
 $data_pemasukan = $stmt_list_in->fetchAll(PDO::FETCH_ASSOC);
 
-// 5. AMBIL RINCIAN PENGELUARAN
+// Ambil Rincian Pengeluaran
 $query_list_out = "
     SELECT p.*, ko.nama_kost 
     FROM table_pengeluaran p
@@ -130,14 +152,14 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
         </h3>
     </div>
     <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse min-w-[900px]">
+        <table class="w-full text-left border-collapse min-w-[950px]">
             <thead class="bg-white border-b border-gray-200">
                 <tr>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600">Tanggal Transaksi</th>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600">Customer</th>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600">Properti & Rincian</th>
                     <th class="py-3 px-6 text-sm font-bold text-gray-600 text-right">Nominal Masuk (Rp)</th>
-                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-center">Invoice</th>
+                    <th class="py-3 px-6 text-sm font-bold text-gray-600 text-center">Tindakan</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -156,10 +178,18 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
                     <td class="py-3 px-6 text-sm font-black text-green-600 text-right">
                         + <?= number_format($in['jumlahtransaksi'], 0, ',', '.') ?>
                     </td>
-                    <td class="py-3 px-6 text-center">
+                    <td class="py-3 px-6 flex justify-center items-center gap-2">
                         <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="inline-block bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded text-xs font-bold transition-colors">
                             Lihat / Cetak
                         </a>
+                        
+                        <?php if ($role_aktif === 'super admin'): ?>
+                            <a href="keuangan.php?hapus_transaksi=<?= $in['id_transaksi'] ?>" 
+                               onclick="return confirm('Apakah Anda yakin ingin menghapus catatan riwayat transaksi ini? Tindakan ini akan mempengaruhi total kalkulator arus kas.');" 
+                               class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">
+                                Hapus
+                            </a>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
