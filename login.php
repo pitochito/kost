@@ -45,10 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </head>
 <body class="bg-[#0a0a0a] text-gray-300 flex items-center justify-center min-h-screen font-mono relative overflow-hidden">
     
-    <div class="absolute inset-0 bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px] opacity-20"></div>
-
-    <div class="relative z-10 w-full max-w-md p-8 bg-black/90 backdrop-blur-md border border-gray-800 border-t-4 border-t-yellow-500 rounded-lg shadow-2xl">
-        
+    <body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen font-mono relative overflow-hidden">
+    
+    <div class="absolute inset-0 bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:40px_40px] opacity-70"></div>  
         <div class="flex flex-col items-center mb-8">
             <img src="logo.jpg" alt="Logo Kost Sun" class="h-24 w-24 object-contain rounded mb-4 border border-gray-700 p-1 bg-black">
             <h2 class="text-2xl font-bold tracking-widest text-white uppercase">SYS_LOGIN</h2>
