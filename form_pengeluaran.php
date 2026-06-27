@@ -111,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <option value="Listrik" <?= $edit_data['kategoripengeluaran'] == 'Listrik' ? 'selected' : '' ?>>Token Listrik / PLN</option>
                         <option value="Air" <?= $edit_data['kategoripengeluaran'] == 'Air' ? 'selected' : '' ?>>Air / PDAM</option>
                         <option value="Internet" <?= $edit_data['kategoripengeluaran'] == 'Internet' ? 'selected' : '' ?>>Internet / WiFi</option>
+                        <option value="Angsuran" <?= $edit_data['kategoripengeluaran'] == 'Angsuran' ? 'selected' : '' ?>>Angsuran / Cicilan</option>
                         <option value="Belanja Bahan" <?= $edit_data['kategoripengeluaran'] == 'Belanja Bahan' ? 'selected' : '' ?>>Belanja Bahan (Galon, Gas, dll)</option>
                         <option value="Perbaikan" <?= $edit_data['kategoripengeluaran'] == 'Perbaikan' ? 'selected' : '' ?>>Perbaikan / Maintenance</option>
                         <option value="Gaji" <?= $edit_data['kategoripengeluaran'] == 'Gaji' ? 'selected' : '' ?>>Gaji Karyawan</option>
