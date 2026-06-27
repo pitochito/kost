@@ -10,7 +10,6 @@ if (!isset($_GET['id'])) {
 $id_customer = $_GET['id'];
 $pesan_error = '';
 
-// Ambil data customer dan transaksi TERAKHIR
 $query_data = "
     SELECT 
         c.namacustomer, c.statuscustomer,
@@ -33,14 +32,12 @@ if (!$data_sewa) {
     exit;
 }
 
-// PROSES SIMPAN PERPANJANGAN
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $jenissewa = $_POST['jenissewa'];
     $durasi = (int)$_POST['durasi'];
     $diskon = (int)str_replace('.', '', $_POST['diskontransaksi']);
     $total_harga = (int)str_replace('.', '', $_POST['total_harga_hidden']);
     
-    // TANGKAL MANIPULASI TANGGAL
     $mulaisewa = $data_sewa['tgl_mulai_baru']; 
     
     $date_obj = new DateTime($mulaisewa);
@@ -49,17 +46,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($jenissewa == 'Harian') { $date_obj->modify("+$durasi days"); }
     $habissewa = $date_obj->format('Y-m-d');
 
-    // Ambil ID User dari Session Aktif untuk Audit Trail
-    $id_user_aktif = $_SESSION['user_id'];
+    // PROTEKSI NULL: Audit Trail
+    $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 
     try {
         $koneksi->beginTransaction();
 
-        // 1. Catat Transaksi Baru (Mencatat id_user pemroses)
-        $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id_user) VALUES (CURDATE(), ?, ?, 'Perpanjangan Sewa', ?, ?, ?, ?, ?)");
+        // INSERT TRANSAKSI (menggunakan kolom id sesuai db_kost.dump)
+        $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlahtransaksi, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Perpanjangan Sewa', ?, ?, ?, ?, ?)");
         $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $total_harga, $data_sewa['id_kamar'], $id_customer, $id_user_aktif]);
 
-        // 2. Pastikan Customer Aktif & Kamar Terisi
         $koneksi->prepare("UPDATE table_customer SET statuscustomer = 'Aktif' WHERE id_customer = ?")->execute([$id_customer]);
         $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?")->execute([$data_sewa['id_kamar']]);
 
@@ -87,13 +83,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded shadow-sm text-sm font-medium"><?= $pesan_error ?></div>
         <?php endif; ?>
 
-        <form action="perpanjang.php?id=<?= $id_customer ?>" method="POST" onsubmit="return confirm('Proses perpanjangan sewa?');">
+        <form action="perpanjang.php?id=<?= $id_customer ?>" method="POST" onsubmit="return konfirmasiPerpanjangan();">
             
             <div class="bg-gray-50 border border-gray-200 p-4 rounded mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
                     <p class="text-xs text-gray-500 uppercase font-bold tracking-wider">Lokasi Properti</p>
-                    <p class="font-bold text-lg text-gray-800"><?= htmlspecialchars($data_sewa['nama_kost']) ?></p>
-                    <p class="text-sm text-gray-600">Kamar <?= htmlspecialchars($data_sewa['nomor_kamar']) ?> (<?= htmlspecialchars($data_sewa['jenis_kamar']) ?>)</p>
+                    <p id="namaKostTxt" class="font-bold text-lg text-gray-800"><?= htmlspecialchars($data_sewa['nama_kost']) ?></p>
+                    <p id="nomorKamarTxt" class="text-sm text-gray-600">Kamar <?= htmlspecialchars($data_sewa['nomor_kamar']) ?> (<?= htmlspecialchars($data_sewa['jenis_kamar']) ?>)</p>
                 </div>
                 <div class="text-right">
                     <p class="text-xs text-gray-500 uppercase font-bold tracking-wider">Tanggal Lanjut Sewa</p>
@@ -140,6 +136,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
     </div>
 </div>
+
+<script>
+    const namaPenyewaFix = <?= json_encode($data_sewa['namacustomer']) ?>;
+
+    function konfirmasiPerpanjangan() {
+        const namaKost = document.getElementById('namaKostTxt').textContent;
+        const nomorKamar = document.getElementById('nomorKamarTxt').textContent;
+        const jenisSewa = document.getElementById('jenissewa').value;
+        const durasi = document.getElementById('durasi').value;
+        const diskon = document.getElementById('diskontransaksi').value || 0;
+        const total = document.getElementById('total_harga_hidden').value;
+
+        const totalRp = parseInt(total).toLocaleString('id-ID');
+        const diskonRp = parseInt(diskon).toLocaleString('id-ID');
+
+        const pesan = `KONFIRMASI PROSES PERPANJANGAN SEWA:\n\n` +
+                      `• Penyewa   : ${namaPenyewaFix}\n` +
+                      `• Properti  : ${namaKost}\n` +
+                      `• Alokasi   : ${nomorKamar}\n` +
+                      `• Durasi    : ${durasi} ${jenisSewa}\n` +
+                      `• Potongan  : Rp ${diskonRp}\n` +
+                      `• Total Kas : Rp ${totalRp}\n\n` +
+                      `Apakah data perpanjangan sewa di atas sudah benar?`;
+
+        return confirm(pesan);
+    }
+</script>
 
 <script>
     const tarifBulanan = <?= $data_sewa['harga_kamar'] ?: 0 ?>;
