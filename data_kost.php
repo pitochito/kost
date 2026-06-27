@@ -5,17 +5,27 @@
 session_start();
 require 'koneksi.php';
 
-// Proteksi Login: Jika belum login, tendang ke login.php
+// Proteksi Login
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
 
+// AMBIL ROLE AKTIF UNTUK PEMBATASAN
+$stmt_role = $koneksi->prepare("SELECT role FROM table_user WHERE id = ?");
+$stmt_role->execute([$_SESSION['user_id']]);
+$role_aktif = strtolower($stmt_role->fetchColumn());
+
 $pesan_error = '';
 $pesan_sukses = '';
 
-// Proses Hapus Data Kost
+// Proses Hapus Data Kost (Hanya Super Admin yang bisa mengeksekusi)
 if (isset($_GET['hapus'])) {
+    if ($role_aktif !== 'super admin') {
+        echo "<script>alert('Akses Ditolak: Hanya Super Admin yang dapat menghapus data Kost.'); window.location.href='data_kost.php';</script>";
+        exit;
+    }
+
     $id_hapus = $_GET['hapus'];
     $cek_kamar = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE id_kost = ?");
     $cek_kamar->execute([$id_hapus]);
@@ -45,7 +55,6 @@ $data_kost = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // BAGIAN 2: MENAMPILKAN VISUAL (HTML)
 // ==========================================
 
-// Panggil bagian atas web (Navbar & Logo)
 require 'header.php'; 
 ?>
 
@@ -53,9 +62,12 @@ require 'header.php';
     
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-xl font-bold text-gray-700">Daftar Lokasi Kost</h2>
+        
+        <?php if ($role_aktif === 'super admin'): ?>
         <a href="form_kost.php" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded transition-colors">
             + Tambah Kost Baru
         </a>
+        <?php endif; ?>
     </div>
 
     <?php if ($pesan_error): ?>
@@ -86,8 +98,11 @@ require 'header.php';
                     </td>
                     <td class="py-3 px-4 flex justify-center gap-2">
                         <a href="kamar.php?id_kost=<?= $kost['id_kost'] ?>" class="bg-black text-white hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Kelola Kamar</a>
-                        <a href="form_kost.php?edit=<?= $kost['id_kost'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
-                        <a href="data_kost.php?hapus=<?= $kost['id_kost'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
+                        
+                        <?php if ($role_aktif === 'super admin'): ?>
+                            <a href="form_kost.php?edit=<?= $kost['id_kost'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
+                            <a href="data_kost.php?hapus=<?= $kost['id_kost'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -96,7 +111,4 @@ require 'header.php';
     </div>
 </main>
 
-<?php 
-// Panggil bagian bawah web (Copyright)
-require 'footer.php'; 
-?>
+<?php require 'footer.php'; ?>

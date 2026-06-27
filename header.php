@@ -6,6 +6,12 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
+
+// PENGECEKAN HAK AKSES (ROLE-BASED ACCESS CONTROL)
+// Mengambil data role dari database berdasarkan user yang sedang login
+$stmt_role_header = $koneksi->prepare("SELECT role FROM table_user WHERE id = ?");
+$stmt_role_header->execute([$_SESSION['user_id']]);
+$role_aktif = strtolower($stmt_role_header->fetchColumn());
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -35,7 +41,11 @@ if (!isset($_SESSION['user_id'])) {
                 <li><a href="data_kost.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Kost & Kamar</a></li>
                 <li><a href="customer.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Data Customer</a></li>
                 <li><a href="keuangan.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Keuangan</a></li>
+                
+                <?php if ($role_aktif === 'super admin'): ?>
                 <li><a href="user.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Manajemen User</a></li>
+                <?php endif; ?>
+
                 <li><a href="ubah_password.php" class="block px-6 py-3 hover:bg-gray-800 hover:text-yellow-500 transition-colors">Ubah Password</a></li>
             </ul>
         </nav>

@@ -2,6 +2,12 @@
 require 'koneksi.php';
 require 'header.php';
 
+// PROTEKSI HALAMAN: TENDANG JIKA BUKAN SUPER ADMIN
+if ($role_aktif !== 'super admin') {
+    echo "<script>alert('Akses Ditolak: Halaman Manajemen User hanya dapat diakses oleh Super Admin.'); window.location.href='index.php';</script>";
+    exit;
+}
+
 $pesan_error = '';
 $mode_edit = false;
 

@@ -2,6 +2,13 @@
 require 'koneksi.php';
 require 'header.php';
 
+// PROTEKSI HALAMAN: TENDANG JIKA BUKAN SUPER ADMIN
+if ($role_aktif !== 'super admin') {
+    $id_kost_kembali = $_GET['id_kost'] ?? '';
+    echo "<script>alert('Akses Ditolak: Hanya Super Admin yang diizinkan untuk menambah atau mengedit data Kamar.'); window.location.href='kamar.php?id_kost=$id_kost_kembali';</script>";
+    exit;
+}
+
 if (!isset($_GET['id_kost'])) {
     header("Location: index.php");
     exit;

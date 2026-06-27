@@ -1,5 +1,22 @@
 <?php
+session_start();
 require 'koneksi.php';
+
+// Proteksi Login
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit;
+}
+
+// PROTEKSI HALAMAN: HANYA SUPER ADMIN YANG BISA MENGAKSES FORM INI
+$stmt_role = $koneksi->prepare("SELECT role FROM table_user WHERE id = ?");
+$stmt_role->execute([$_SESSION['user_id']]);
+$role_aktif = strtolower($stmt_role->fetchColumn());
+
+if ($role_aktif !== 'super admin') {
+    echo "<script>alert('Akses Ditolak: Hanya Super Admin yang diizinkan untuk menambah atau mengubah data properti Kost.'); window.location.href='data_kost.php';</script>";
+    exit;
+}
 
 $pesan_error = '';
 $mode_edit = false;
