@@ -73,8 +73,26 @@ $query_warning = "
 $stmt_warning = $koneksi->query($query_warning);
 $data_warning = $stmt_warning->fetchAll(PDO::FETCH_ASSOC);
 
+// 4.5 QUERY CUSTOMER BELUM LUNAS
+$query_belum_lunas = "
+    SELECT 
+        c.id_customer, c.namacustomer, c.nohpcustomer,
+        k.nomor_kamar, ko.nama_kost,
+        t.id_transaksi, t.jumlahtransaksi, t.diskontransaksi, t.jumlah_charge, t.jumlah_bayar
+    FROM table_transaksi t
+    JOIN table_customer c ON t.id_customer = c.id_customer
+    JOIN table_kamar k ON t.id_kamar = k.id_kamar
+    JOIN table_kost ko ON k.id_kost = ko.id_kost
+    WHERE t.status_bayar = 'Belum Lunas'
+    ORDER BY t.tanggaltransaksi DESC
+";
+$stmt_belum_lunas = $koneksi->query($query_belum_lunas);
+$data_belum_lunas = $stmt_belum_lunas->fetchAll(PDO::FETCH_ASSOC);
+
+
 // 5. KALKULASI KEUANGAN (PEMASUKAN & PENGELUARAN)
-$stmt_in = $koneksi->query("SELECT SUM(jumlahtransaksi) FROM table_transaksi");
+// Menggunakan jumlah_bayar agar Cashflow merepresentasikan uang riil
+$stmt_in = $koneksi->query("SELECT SUM(jumlah_bayar) FROM table_transaksi");
 $total_pemasukan = $stmt_in->fetchColumn() ?: 0;
 
 $stmt_out = $koneksi->query("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran");
@@ -158,6 +176,54 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 </div>
 <?php endif; ?>
 
+<?php if (!empty($data_belum_lunas)): ?>
+<div class="mb-10 bg-orange-50 border border-orange-200 rounded-xl overflow-hidden shadow-sm">
+    <div class="bg-orange-500 px-6 py-4 flex items-center gap-3">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <h3 class="text-lg font-bold text-white tracking-wide">PEMBERITAHUAN: Tagihan Belum Lunas</h3>
+    </div>
+    
+    <div class="p-6 overflow-x-auto">
+        <table class="w-full text-left border-collapse min-w-[700px]">
+            <thead class="border-b border-orange-200">
+                <tr>
+                    <th class="py-2 px-2 text-sm font-bold text-orange-800">Customer & Kontak</th>
+                    <th class="py-2 px-2 text-sm font-bold text-orange-800">Properti</th>
+                    <th class="py-2 px-2 text-sm font-bold text-orange-800 text-right">Kekurangan (Rp)</th>
+                    <th class="py-2 px-2 text-sm font-bold text-orange-800 text-center">Tindakan</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-orange-100">
+                <?php foreach ($data_belum_lunas as $bl): 
+                    $total_tagihan = $bl['jumlahtransaksi'] - $bl['diskontransaksi'] + $bl['jumlah_charge'];
+                    $kurang_bayar = $total_tagihan - $bl['jumlah_bayar'];
+                ?>
+                <tr class="hover:bg-orange-100 transition-colors">
+                    <td class="py-3 px-2">
+                        <p class="font-bold text-gray-800"><?= htmlspecialchars($bl['namacustomer']) ?></p>
+                        <p class="text-xs font-semibold text-orange-600"><?= htmlspecialchars($bl['nohpcustomer']) ?></p>
+                    </td>
+                    <td class="py-3 px-2">
+                        <p class="font-semibold text-gray-700"><?= htmlspecialchars($bl['nama_kost']) ?></p>
+                        <p class="text-xs text-gray-600">Kamar <?= htmlspecialchars($bl['nomor_kamar']) ?></p>
+                    </td>
+                    <td class="py-3 px-2 text-right">
+                        <p class="font-black text-red-600">- <?= number_format($kurang_bayar, 0, ',', '.') ?></p>
+                        <p class="text-[10px] text-gray-500 font-semibold mt-0.5">Total Tagihan: <?= number_format($total_tagihan, 0, ',', '.') ?></p>
+                    </td>
+                    <td class="py-3 px-2 text-center">
+                        <a href="keuangan.php?status_filter=Belum+Lunas" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition-colors">
+                            Bayar di Keuangan
+                        </a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="mt-8 mb-6">
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold text-gray-800">Ringkasan Arus Kas</h2>
@@ -165,7 +231,7 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pemasukan</p>
+            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pemasukan (Telah Dibayar)</p>
             <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></p>
         </div>
         <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
