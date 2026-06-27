@@ -28,7 +28,7 @@ $role_aktif = strtolower($stmt_role_header->fetchColumn());
     <aside id="sidebar" class="w-64 bg-black text-white flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-30 transition-transform duration-300 ease-in-out shadow-xl">
         <div class="p-5 flex items-center justify-between border-b border-gray-800">
             <div class="flex items-center gap-3">
-                <img src="logo.jpg" alt="Logo" class="h-10 object-contain rounded">
+                <img src="logo.jpg" alt="Logo" class="h-10 object-contain rounded bg-white p-0.5">
                 <span class="text-yellow-500 font-bold text-xl tracking-wider">KOST SUN</span>
             </div>
             <button id="close-sidebar-btn" class="md:hidden text-gray-400 hover:text-white focus:outline-none">
@@ -71,4 +71,4 @@ $role_aktif = strtolower($stmt_role_header->fetchColumn());
             </div>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative">
+        <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:40px_40px]">
