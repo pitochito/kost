@@ -292,7 +292,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
     <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pemasukan', 'icon_pemasukan')">
         <h3 class="font-bold text-green-800 flex items-center gap-2 text-lg">
             <svg id="icon_pemasukan" class="w-6 h-6 transition-transform duration-300 <?= $show_in ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
-            2. Pemasukan Sewa (<?= $total_data_in ?> Data Ditemukan)
+            Pemasukan Sewa (<?= $total_data_in ?> Data Ditemukan)
         </h3>
         <?php if ($role_aktif === 'super admin'): ?>
             <a href="form_transaksi.php" onclick="event.stopPropagation();" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow-sm transition-colors flex items-center gap-1">
@@ -430,7 +430,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
     <div class="px-6 py-4 border-b border-gray-200 bg-red-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pengeluaran', 'icon_pengeluaran')">
         <h3 class="font-bold text-red-800 flex items-center gap-2 text-lg">
             <svg id="icon_pengeluaran" class="w-6 h-6 transition-transform duration-300 <?= $show_out ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
-            3. Pengeluaran Operasional (<?= $total_data_out ?> Data)
+            Pengeluaran Operasional (<?= $total_data_out ?> Data)
         </h3>
     </div>
     
