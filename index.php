@@ -39,7 +39,6 @@ $user_aktif = $stmt_user->fetchColumn();
 // ==============================================================================
 // 3. LOGIKA FILTER PER CABANG / LOKASI KOST
 // ==============================================================================
-// Ambil semua daftar kost untuk dropdown
 $data_lokasi_kost = $koneksi->query("SELECT id_kost, nama_kost FROM table_kost ORDER BY nama_kost ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 $filter_kost = $_GET['filter_kost'] ?? '';
@@ -55,9 +54,9 @@ if (!empty($filter_kost)) {
     $param_filter = [$filter_kost];
 }
 
-// 4. KALKULASI STATISTIK PROPERTI (DINAMIS DENGAN FILTER)
+// 4. KALKULASI STATISTIK PROPERTI
 $total_kost_global = $koneksi->query("SELECT COUNT(*) FROM table_kost")->fetchColumn();
-$tampil_total_kost = empty($filter_kost) ? $total_kost_global : 1; // Jika difilter, tampilkan 1
+$tampil_total_kost = empty($filter_kost) ? $total_kost_global : 1; 
 
 $stmt_kamar = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE 1=1 $where_kamar");
 $stmt_kamar->execute($param_filter);
@@ -71,7 +70,7 @@ $stmt_kosong = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE LOWER(s
 $stmt_kosong->execute($param_filter);
 $kamar_kosong = $stmt_kosong->fetchColumn();
 
-// 5. QUERY PERINGATAN JATUH TEMPO (DINAMIS DENGAN FILTER)
+// 5. QUERY PERINGATAN JATUH TEMPO
 $query_warning = "
     SELECT 
         c.id_customer, c.namacustomer, c.nohpcustomer,
@@ -89,16 +88,16 @@ $query_warning = "
     $where_transaksi
     AND t.id_transaksi = (SELECT MAX(id_transaksi) FROM table_transaksi WHERE id_customer = t.id_customer)
     HAVING 
-        (total_durasi_hari > 20 AND sisa_hari <= 7) OR   -- Bulanan
-        (total_durasi_hari > 6 AND total_durasi_hari <= 20 AND sisa_hari <= 3) OR -- Mingguan
-        (total_durasi_hari <= 6 AND sisa_hari <= 1)      -- Harian
+        (total_durasi_hari > 20 AND sisa_hari <= 7) OR 
+        (total_durasi_hari > 6 AND total_durasi_hari <= 20 AND sisa_hari <= 3) OR 
+        (total_durasi_hari <= 6 AND sisa_hari <= 1)
     ORDER BY sisa_hari ASC
 ";
 $stmt_warning = $koneksi->prepare($query_warning);
 $stmt_warning->execute($param_filter);
 $data_warning = $stmt_warning->fetchAll(PDO::FETCH_ASSOC);
 
-// 6. QUERY CUSTOMER BELUM LUNAS (DINAMIS DENGAN FILTER)
+// 6. QUERY CUSTOMER BELUM LUNAS
 $query_belum_lunas = "
     SELECT 
         c.id_customer, c.namacustomer, c.nohpcustomer,
@@ -116,7 +115,7 @@ $stmt_belum_lunas = $koneksi->prepare($query_belum_lunas);
 $stmt_belum_lunas->execute($param_filter);
 $data_belum_lunas = $stmt_belum_lunas->fetchAll(PDO::FETCH_ASSOC);
 
-// 7. KALKULASI KEUANGAN (DINAMIS DENGAN FILTER)
+// 7. KALKULASI KEUANGAN
 $stmt_in = $koneksi->prepare("SELECT SUM(t.jumlah_bayar) FROM table_transaksi t JOIN table_kamar k ON t.id_kamar = k.id_kamar WHERE 1=1 $where_transaksi");
 $stmt_in->execute($param_filter);
 $total_pemasukan = $stmt_in->fetchColumn() ?: 0;
@@ -130,19 +129,20 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+<div class="mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
     <div>
         <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Selamat datang, <span class="text-yellow-600 capitalize"><?= htmlspecialchars($user_aktif) ?></span>!</h1>
         <p class="text-gray-500 mt-2 text-sm">Berikut adalah ringkasan performa dan statistik properti Kost Sun Anda saat ini.</p>
     </div>
     
-    <div class="w-full md:w-auto">
-        <form action="index.php" method="GET" class="relative">
+    <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+        <!-- Filter Lokasi -->
+        <form action="index.php" method="GET" class="relative w-full sm:w-auto">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
             </div>
-            <select name="filter_kost" onchange="this.form.submit()" class="block w-full md:w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
-                <option value="">Semua Lokasi Kost (Global)</option>
+            <select name="filter_kost" onchange="this.form.submit()" class="block w-full sm:w-56 pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
+                <option value="">Semua Lokasi (Global)</option>
                 <?php foreach($data_lokasi_kost as $lk): ?>
                     <option value="<?= $lk['id_kost'] ?>" <?= ($filter_kost == $lk['id_kost']) ? 'selected' : '' ?>>
                         <?= htmlspecialchars($lk['nama_kost']) ?>
@@ -150,6 +150,12 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
                 <?php endforeach; ?>
             </select>
         </form>
+        
+        <!-- Tombol Cetak Laporan -->
+        <a href="laporan.php?kost=<?= $filter_kost ?>" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2 text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            Laporan Bulanan
+        </a>
     </div>
 </div>
 
@@ -309,80 +315,39 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Data PHP yang di-inject ke JS
     const kmrIsi = <?= $kamar_isi ?>;
     const kmrKosong = <?= $kamar_kosong ?>;
     const kasMasuk = <?= $total_pemasukan ?>;
     const kasKeluar = <?= $total_pengeluaran ?>;
 
-    // 1. Inisialisasi Chart Okupansi (Donut)
     const ctxOcc = document.getElementById('occupancyChart').getContext('2d');
     new Chart(ctxOcc, {
         type: 'doughnut',
         data: {
             labels: ['Terisi', 'Kosong'],
-            datasets: [{
-                data: [kmrIsi, kmrKosong],
-                backgroundColor: ['#16a34a', '#dc2626'], // text-green-600, text-red-600
-                hoverOffset: 4,
-                borderWidth: 0
-            }]
+            datasets: [{ data: [kmrIsi, kmrKosong], backgroundColor: ['#16a34a', '#dc2626'], hoverOffset: 4, borderWidth: 0 }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 12, font: {family: 'sans-serif', weight: 'bold'} } }
-            },
-            cutout: '70%'
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: {family: 'sans-serif', weight: 'bold'} } } }, cutout: '70%' }
     });
 
-    // 2. Inisialisasi Chart Arus Kas (Bar Horizontal)
     const ctxCash = document.getElementById('cashflowChart').getContext('2d');
     new Chart(ctxCash, {
         type: 'bar',
         data: {
             labels: ['Arus Kas'],
             datasets: [
-                {
-                    label: 'Pemasukan',
-                    data: [kasMasuk],
-                    backgroundColor: '#16a34a',
-                    borderRadius: 4
-                },
-                {
-                    label: 'Pengeluaran',
-                    data: [kasKeluar],
-                    backgroundColor: '#dc2626',
-                    borderRadius: 4
-                }
+                { label: 'Pemasukan', data: [kasMasuk], backgroundColor: '#16a34a', borderRadius: 4 },
+                { label: 'Pengeluaran', data: [kasKeluar], backgroundColor: '#dc2626', borderRadius: 4 }
             ]
         },
         options: {
-            indexAxis: 'y', // Membuat bar menjadi horizontal (kiri ke kanan)
-            responsive: true,
-            maintainAspectRatio: false,
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'top', labels: { boxWidth: 12, font: {family: 'sans-serif', weight: 'bold'} } },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let value = context.raw;
-                            return ' Rp ' + value.toLocaleString('id-ID');
-                        }
-                    }
-                }
+                tooltip: { callbacks: { label: function(context) { return ' Rp ' + context.raw.toLocaleString('id-ID'); } } }
             },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: {
-                        callback: function(value) { return 'Rp ' + (value/1000000) + 'M'; }
-                    }
-                },
-                y: { grid: { display: false }, display: false } // Sembunyikan label sumbu Y agar bersih
-            }
+            scales: { x: { grid: { display: false }, ticks: { callback: function(value) { return 'Rp ' + (value/1000000) + 'M'; } } }, y: { grid: { display: false }, display: false } }
         }
     });
 });
