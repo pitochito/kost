@@ -20,7 +20,8 @@ $role_aktif = strtolower($stmt_role_header->fetchColumn());
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Manajemen - Kost Sun</title>
     <!-- Tambahkan baris ini -->
-    <link rel="icon" type="image/jpeg" href="logo.jpg?v=<?= time(); ?>">
+    <link rel="icon" type="image/jpeg" href="ikon-sun.jpg">
+    <link rel="apple-touch-icon" href="ikon-sun.jpg">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex h-screen overflow-hidden text-gray-800 font-sans relative">

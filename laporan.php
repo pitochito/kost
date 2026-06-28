@@ -104,7 +104,8 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laporan Bulanan - Kost Sun</title>
-    <link rel="icon" type="image/jpeg" href="logo.jpg?v=<?= time(); ?>">
+    <link rel="icon" type="image/jpeg" href="ikon-sun.jpg">
+    <link rel="apple-touch-icon" href="ikon-sun.jpg">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @media print {
