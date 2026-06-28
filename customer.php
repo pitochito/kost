@@ -126,9 +126,17 @@ $data_customer = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <h2 class="text-2xl font-bold text-gray-800">Data Customer</h2>
         <p class="text-sm text-gray-500 mt-1">Kelola data riwayat penyewa dan profil customer kost Anda.</p>
     </div>
-    <a href="form_customer.php" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-6 rounded transition-colors shadow-sm whitespace-nowrap">
-        + Pendaftaran Customer Baru
-    </a>
+    
+    <!-- Area Tombol Diperbarui -->
+    <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+        <a href="laporan_tamu.php" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded transition-colors shadow-sm text-center flex items-center justify-center gap-2 whitespace-nowrap">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+            Cetak Laporan Tamu
+        </a>
+        <a href="form_customer.php" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-5 rounded transition-colors shadow-sm whitespace-nowrap text-center">
+            + Pendaftaran Baru
+        </a>
+    </div>
 </div>
 
 <?php if ($pesan_sukses): ?>
@@ -138,7 +146,8 @@ $data_customer = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
     <form action="customer.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end flex-wrap">
         
-        <input type="hidden" name="page" value="1"> <div class="flex-1 min-w-[200px]">
+        <input type="hidden" name="page" value="1"> 
+        <div class="flex-1 min-w-[200px]">
             <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pencarian Universal</label>
             <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="Cari Nama, NIK, No. HP, Alamat..." 
                    class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500">
