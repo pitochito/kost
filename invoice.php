@@ -63,6 +63,8 @@ $warna_status = ($status_bayar === 'Lunas') ? 'text-green-600' : 'text-red-600';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $invoice_number ?> - Kost Sun</title>
+    <!-- Tambahkan baris ini -->
+    <link rel="icon" type="image/jpeg" href="logo.jpg">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* CSS khusus untuk merapikan hasil cetakan PDF / Kertas */
