@@ -1,12 +1,5 @@
 <?php
-session_start();
 require 'koneksi.php';
-
-// Pastikan yang akses sudah login (sesuaikan dengan logic auth Anda)
-if (!isset($_SESSION['username'])) {
-    header("Location: login.php");
-    exit;
-}
 
 // ==========================================
 // MENANGKAP FILTER DARI URL
