@@ -39,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <!-- Tambahkan baris ini -->
     <link rel="icon" type="image/jpeg" href="ikon-sun.jpg">
     <link rel="apple-touch-icon" href="ikon-sun.jpg">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kost Sun">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Highlight selection untuk efek terminal */

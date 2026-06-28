@@ -22,6 +22,9 @@ $role_aktif = strtolower($stmt_role_header->fetchColumn());
     <!-- Tambahkan baris ini -->
     <link rel="icon" type="image/jpeg" href="ikon-sun.jpg">
     <link rel="apple-touch-icon" href="ikon-sun.jpg">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kost Sun">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex h-screen overflow-hidden text-gray-800 font-sans relative">
