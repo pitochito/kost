@@ -1,13 +1,11 @@
 <?php
 require 'koneksi.php';
-require 'header.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $pesan_error = '';
 $mode_edit = false;
-
-$stmt_kost = $koneksi->query("SELECT id_kost, nama_kost FROM table_kost ORDER BY nama_kost ASC");
-$data_kost = $stmt_kost->fetchAll(PDO::FETCH_ASSOC);
-
 $edit_id = '';
 $edit_data = [
     'id_kost' => '',
@@ -18,20 +16,9 @@ $edit_data = [
     'jumlahpengeluaran' => ''
 ];
 
-if (isset($_GET['edit'])) {
-    $mode_edit = true;
-    $edit_id = $_GET['edit'];
-    $stmt = $koneksi->prepare("SELECT * FROM table_pengeluaran WHERE id_pengeluaran = ?");
-    $stmt->execute([$edit_id]);
-    $data_db = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($data_db) {
-        $edit_data = $data_db;
-    } else {
-        header("Location: keuangan.php");
-        exit;
-    }
-}
-
+// ====================================================================
+// 1. PROSES LOGIKA PENYIMPANAN / UPDATE DATA (POST)
+// ====================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_pengeluaran_post = $_POST['id_pengeluaran'] ?? '';
     $id_kost = $_POST['id_kost'] ?? null; 
@@ -41,25 +28,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tanggal = $_POST['tanggalpengeluaran'];
     $jumlah = (int)str_replace('.', '', $_POST['jumlahpengeluaran']);
 
-    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
     $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 
     if (empty($nama) || empty($jumlah) || empty($id_kost)) {
         $pesan_error = "Lokasi properti, rincian pengeluaran, dan nominal wajib diisi!";
     } else {
         if (!empty($id_pengeluaran_post)) {
-            // UPDATE: Menyimpan id pengubah terakhir sesuai db_kost.dump
             $stmt = $koneksi->prepare("UPDATE table_pengeluaran SET jenispengeluaran=?, kategoripengeluaran=?, namapengeluaran=?, tanggalpengeluaran=?, jumlahpengeluaran=?, id_kost=?, id=? WHERE id_pengeluaran=?");
             $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_user_aktif, $id_pengeluaran_post]);
         } else {
-            // INSERT: Menyimpan id pembuat pertama sesuai db_kost.dump
             $stmt = $koneksi->prepare("INSERT INTO table_pengeluaran (jenispengeluaran, kategoripengeluaran, namapengeluaran, tanggalpengeluaran, jumlahpengeluaran, id_kost, id) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$jenis, $kategori, $nama, $tanggal, $jumlah, $id_kost, $id_user_aktif]);
         }
+        
+        // Redirect berjalan mulus karena belum ada HTML yang di-render
         header("Location: keuangan.php");
         exit;
     }
 }
+
+// ====================================================================
+// 2. PROSES LOGIKA PENGAMBILAN DATA EDIT (GET)
+// ====================================================================
+if (isset($_GET['edit'])) {
+    $mode_edit = true;
+    $edit_id = $_GET['edit'];
+    $stmt = $koneksi->prepare("SELECT * FROM table_pengeluaran WHERE id_pengeluaran = ?");
+    $stmt->execute([$edit_id]);
+    $data_db = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($data_db) {
+        $edit_data = $data_db;
+    } else {
+        header("Location: keuangan.php");
+        exit;
+    }
+}
+
+// ====================================================================
+// 3. BARU RENDER ANTARMUKA / HTML VIEWS
+// ====================================================================
+require 'header.php'; // Memanggil antarmuka Sidebar & Header
+
+// Ambil data referensi kost untuk dropdown
+$stmt_kost = $koneksi->query("SELECT id_kost, nama_kost FROM table_kost ORDER BY nama_kost ASC");
+$data_kost = $stmt_kost->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="max-w-3xl mx-auto">
