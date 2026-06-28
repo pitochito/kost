@@ -237,7 +237,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             
             <div class="w-full md:w-auto">
                 <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Metode Waktu</label>
-                <select name="sum_tipe" id="sum_tipe" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white" onchange="toggleDateSum()">
+                <select name="sum_tipe" id="sum_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white" onchange="toggleDateSum()">
                     <option value="bulan" <?= $sum_tipe == 'bulan' ? 'selected' : '' ?>>Per Bulan</option>
                     <option value="rentang" <?= $sum_tipe == 'rentang' ? 'selected' : '' ?>>Rentang Tanggal</option>
                 </select>
@@ -245,17 +245,17 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             
             <div id="sum_wrap_bulan" class="w-full md:w-auto <?= $sum_tipe == 'bulan' ? 'block' : 'hidden' ?>">
                 <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pilih Bulan</label>
-                <input type="month" name="sum_bulan" value="<?= $sum_bulan ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+                <input type="month" name="sum_bulan" value="<?= $sum_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
             </div>
             
             <div id="sum_wrap_rentang" class="w-full md:w-auto <?= $sum_tipe == 'rentang' ? 'flex flex-col sm:flex-row' : 'hidden' ?> gap-3 sm:gap-2">
                 <div class="flex-1 w-full sm:w-auto">
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dari</label>
-                    <input type="date" name="sum_start" value="<?= $sum_start ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+                    <input type="date" name="sum_start" value="<?= $sum_start ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
                 </div>
                 <div class="flex-1 w-full sm:w-auto">
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai</label>
-                    <input type="date" name="sum_end" value="<?= $sum_end ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+                    <input type="date" name="sum_end" value="<?= $sum_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
                 </div>
             </div>
             
@@ -301,22 +301,22 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                 <div class="flex flex-col md:flex-row flex-wrap gap-4 items-end">
                     <div class="w-full md:w-auto">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
-                        <select name="in_tipe" id="in_tipe" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white" onchange="toggleDateIn()">
+                        <select name="in_tipe" id="in_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white" onchange="toggleDateIn()">
                             <option value="bulan" <?= $in_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
                             <option value="rentang" <?= $in_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
                         </select>
                     </div>
                     <div id="in_wrap_bulan" class="w-full md:w-auto <?= $in_tipe == 'bulan' ? 'block' : 'hidden' ?>">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
-                        <input type="month" name="in_bulan" value="<?= $in_bulan ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                        <input type="month" name="in_bulan" value="<?= $in_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
                     </div>
                     <div id="in_wrap_rentang" class="w-full md:w-auto <?= $in_tipe == 'rentang' ? 'flex flex-row' : 'hidden' ?> gap-2">
-                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="in_start" value="<?= $in_start ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white"></div>
-                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="in_end" value="<?= $in_end ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white"></div>
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="in_start" value="<?= $in_start ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="in_end" value="<?= $in_end ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
                     </div>
                     <div class="w-full md:w-auto flex-1 min-w-[200px]">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-                        <select name="in_kost" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                        <select name="in_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
                             <option value="">Semua Lokasi</option>
                             <?php foreach($list_kost_db as $k): ?>
                                 <option value="<?= $k['id_kost'] ?>" <?= $in_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
@@ -325,7 +325,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                     </div>
                     <div class="w-1/2 md:w-auto pr-2 md:pr-0">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-                        <select name="in_status" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                        <select name="in_status" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
                             <option value="">Semua Status</option>
                             <option value="Lunas" <?= $in_status == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
                             <option value="Belum Lunas" <?= $in_status == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
@@ -333,7 +333,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                     </div>
                     <div class="w-1/2 md:w-auto pl-2 md:pl-0">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
-                        <select name="in_limit" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                        <select name="in_limit" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
                             <option value="10" <?= $in_limit == '10' ? 'selected' : '' ?>>10</option>
                             <option value="25" <?= $in_limit == '25' ? 'selected' : '' ?>>25</option>
                             <option value="50" <?= $in_limit == '50' ? 'selected' : '' ?>>50</option>
@@ -434,22 +434,22 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                 <div class="flex flex-col md:flex-row flex-wrap gap-4 items-end">
                     <div class="w-full md:w-auto">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
-                        <select name="out_tipe" id="out_tipe" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white" onchange="toggleDateOut()">
+                        <select name="out_tipe" id="out_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white" onchange="toggleDateOut()">
                             <option value="bulan" <?= $out_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
                             <option value="rentang" <?= $out_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
                         </select>
                     </div>
                     <div id="out_wrap_bulan" class="w-full md:w-auto <?= $out_tipe == 'bulan' ? 'block' : 'hidden' ?>">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
-                        <input type="month" name="out_bulan" value="<?= $out_bulan ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                        <input type="month" name="out_bulan" value="<?= $out_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
                     </div>
                     <div id="out_wrap_rentang" class="w-full md:w-auto <?= $out_tipe == 'rentang' ? 'flex flex-row' : 'hidden' ?> gap-2">
-                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="out_start" value="<?= $out_start ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white"></div>
-                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="out_end" value="<?= $out_end ?>" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white"></div>
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="out_start" value="<?= $out_start ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="out_end" value="<?= $out_end ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
                     </div>
                     <div class="w-full md:w-auto flex-1 min-w-[200px]">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-                        <select name="out_kost" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                        <select name="out_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
                             <option value="">Semua Lokasi</option>
                             <?php foreach($list_kost_db as $k): ?>
                                 <option value="<?= $k['id_kost'] ?>" <?= $out_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
@@ -458,7 +458,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                     </div>
                     <div class="w-1/2 md:w-auto pr-2 md:pr-0">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kategori Biaya</label>
-                        <select name="out_kat" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                        <select name="out_kat" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
                             <option value="">Semua Kategori</option>
                             <?php foreach($list_kategori_db as $kat): ?>
                                 <option value="<?= htmlspecialchars($kat) ?>" <?= $out_kat == $kat ? 'selected' : '' ?>><?= htmlspecialchars($kat) ?></option>
@@ -467,7 +467,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                     </div>
                     <div class="w-1/2 md:w-auto pl-2 md:pl-0">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
-                        <select name="out_limit" class="w-full max-w-full box-border border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                        <select name="out_limit" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
                             <option value="10" <?= $out_limit == '10' ? 'selected' : '' ?>>10</option>
                             <option value="25" <?= $out_limit == '25' ? 'selected' : '' ?>>25</option>
                             <option value="50" <?= $out_limit == '50' ? 'selected' : '' ?>>50</option>
@@ -527,9 +527,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             <?php endif; ?>
         </div>
     </div>
-</div> 
-
-<div id="modal_bayar" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
+</div> <div id="modal_bayar" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <div class="bg-green-600 px-6 py-4 flex justify-between items-center">
             <h3 class="font-bold text-white text-lg">Update Pembayaran / Cicilan</h3>
@@ -548,11 +546,11 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Tanggal Transfer/Bayar <span class="text-red-500">*</span></label>
-                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full max-w-full box-border border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none bg-white">
+                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none bg-white">
             </div>
             <div class="mb-6">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nominal Pembayaran (Rp) <span class="text-red-500">*</span></label>
-                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full max-w-full box-border border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
+                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
             </div>
             <div class="flex gap-3 justify-end mt-2">
                 <button type="button" onclick="tutupModalBayar()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors">Batal</button>
