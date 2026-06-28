@@ -34,7 +34,7 @@ if (isset($_GET['edit'])) {
     if ($data_db) {
         $edit_data = $data_db;
     } else {
-        header("Location: customer.php");
+        echo "<script>window.location.href='customer.php';</script>";
         exit;
     }
 }
@@ -52,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kontak_darurat = trim($_POST['kontakdarurat']);
     $status = $mode_edit ? $_POST['statuscustomer'] : 'Aktif';
 
-    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
-    $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail (Default 1 jika lepas)
+    $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 1;
 
     if (empty($nik) || empty($nama)) {
         $pesan_error = "NIK dan Nama Customer wajib diisi!";
@@ -103,8 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $jenissewa = $_POST['jenissewa'];
                 $durasi = (int)$_POST['durasi'];
                 
-                // Variabel Keuangan (PERBAIKAN LOGIKA)
-                $jumlahtransaksi = (int)$_POST['harga_dasar_hidden']; // Mengambil Harga Dasar (Tarif x Durasi)
+                // Variabel Keuangan
+                $jumlahtransaksi = (int)$_POST['harga_dasar_hidden']; 
                 $diskon = (int)$_POST['diskontransaksi'];
                 $charge = (int)$_POST['jumlah_charge'];
                 
@@ -131,7 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $koneksi->commit();
-            header("Location: customer.php");
+            
+            // SOLUSI BLANK PAGE: Redirect aman berbasis JavaScript untuk menembus Headers Already Sent
+            echo "<script>window.location.href='customer.php';</script>";
             exit;
 
         } catch (Exception $e) {
@@ -348,10 +350,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const total = document.getElementById('total_harga_hidden').value;
             const bayar = document.getElementById('jumlah_bayar').value || 0;
 
-            const totalRp = parseInt(total).toLocaleString('id-ID');
-            const diskonRp = parseInt(diskon).toLocaleString('id-ID');
-            const chargeRp = parseInt(charge).toLocaleString('id-ID');
-            const bayarRp = parseInt(bayar).toLocaleString('id-ID');
+            const totalRp = (parseInt(total) || 0).toLocaleString('id-ID');
+            const diskonRp = (parseInt(diskon) || 0).toLocaleString('id-ID');
+            const chargeRp = (parseInt(charge) || 0).toLocaleString('id-ID');
+            const bayarRp = (parseInt(bayar) || 0).toLocaleString('id-ID');
             
             const statusVisual = (parseInt(bayar) >= parseInt(total)) ? "LUNAS" : "BELUM LUNAS";
 
