@@ -96,15 +96,27 @@ if ($sum_tipe === 'bulan') {
     $date_end_sum = $sum_end;
 }
 
-$stmt_sum_in = $koneksi->prepare("SELECT SUM(jumlah_bayar) FROM table_transaksi WHERE tanggal_bayar BETWEEN ? AND ?");
+// UPDATE: Menggunakan tanggaltransaksi (Accrual)
+$stmt_sum_in = $koneksi->prepare("
+    SELECT 
+        SUM(jumlahtransaksi - diskontransaksi + jumlah_charge) as total_tagihan,
+        SUM(jumlah_bayar) as uang_diterima
+    FROM table_transaksi 
+    WHERE tanggaltransaksi BETWEEN ? AND ?
+");
 $stmt_sum_in->execute([$date_start_sum, $date_end_sum]);
-$total_pemasukan_sum = $stmt_sum_in->fetchColumn() ?: 0;
+$hasil_sum = $stmt_sum_in->fetch(PDO::FETCH_ASSOC);
+
+$total_pendapatan_sum = $hasil_sum['total_tagihan'] ?: 0;
+$total_pemasukan_riil_sum = $hasil_sum['uang_diterima'] ?: 0;
+$total_piutang_sum = $total_pendapatan_sum - $total_pemasukan_riil_sum;
+
 
 $stmt_sum_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran WHERE tanggalpengeluaran BETWEEN ? AND ?");
 $stmt_sum_out->execute([$date_start_sum, $date_end_sum]);
 $total_pengeluaran_sum = $stmt_sum_out->fetchColumn() ?: 0;
 
-$saldo_bersih_sum = $total_pemasukan_sum - $total_pengeluaran_sum;
+$saldo_bersih_sum = $total_pemasukan_riil_sum - $total_pengeluaran_sum;
 
 
 // ==========================================
@@ -127,6 +139,7 @@ if ($in_tipe === 'bulan') {
     $date_end_in = $in_end;
 }
 
+// UPDATE: Menggunakan tanggaltransaksi
 $where_in_arr = ["t.tanggaltransaksi BETWEEN ? AND ?"];
 $params_in = [$date_start_in, $date_end_in];
 
@@ -228,7 +241,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
 
     <div class="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
         <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="font-bold text-gray-800 text-lg">Ringkasan Arus Kas</h3>
+            <h3 class="font-bold text-gray-800 text-lg">Ringkasan Arus Kas & Piutang</h3>
         </div>
         
         <form action="keuangan.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -262,20 +275,22 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             <button type="submit" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors">Lihat Ringkasan</button>
         </form>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-green-50 p-6 rounded-xl border border-green-200 border-l-4 border-l-green-500 flex flex-col justify-center">
-                <p class="text-sm font-semibold text-gray-500 mb-1">Pemasukan (Telah Dibayar)</p>
-                <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan_sum, 0, ',', '.') ?></p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-green-50 p-5 rounded-xl shadow-sm border border-green-200 border-l-4 border-l-green-500 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
+                <p class="text-xl font-black text-green-600">Rp <?= number_format($total_pemasukan_riil_sum, 0, ',', '.') ?></p>
             </div>
-            <div class="bg-red-50 p-6 rounded-xl border border-red-200 border-l-4 border-l-red-500 flex flex-col justify-center">
-                <p class="text-sm font-semibold text-gray-500 mb-1">Total Pengeluaran</p>
-                <p class="text-2xl font-black text-red-600">Rp <?= number_format($total_pengeluaran_sum, 0, ',', '.') ?></p>
+            <div class="bg-orange-50 p-5 rounded-xl shadow-sm border border-orange-200 border-l-4 border-l-orange-500 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang (Belum Dibayar)</p>
+                <p class="text-xl font-black text-orange-500">Rp <?= number_format($total_piutang_sum, 0, ',', '.') ?></p>
             </div>
-            <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
-                <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Bersih (Kas Riil)</p>
-                <p class="text-2xl font-black <?= $saldo_bersih_sum >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">
-                    Rp <?= number_format($saldo_bersih_sum, 0, ',', '.') ?>
-                </p>
+            <div class="bg-red-50 p-5 rounded-xl shadow-sm border border-red-200 border-l-4 border-l-red-500 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Pengeluaran</p>
+                <p class="text-xl font-black text-red-600">Rp <?= number_format($total_pengeluaran_sum, 0, ',', '.') ?></p>
+            </div>
+            <div class="bg-gray-900 p-5 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih Kas</p>
+                <p class="text-xl font-black <?= $saldo_bersih_sum >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih_sum, 0, ',', '.') ?></p>
             </div>
         </div>
     </div>
@@ -302,7 +317,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                     <div class="w-full md:w-auto">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
                         <select name="in_tipe" id="in_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white" onchange="toggleDateIn()">
-                            <option value="bulan" <?= $in_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
+                            <option value="bulan" <?= $in_tipe == 'bulan' ? 'selected' : '' ?>>Bulan Transaksi</option>
                             <option value="rentang" <?= $in_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
                         </select>
                     </div>
@@ -348,7 +363,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                 <table class="w-full text-left border-collapse min-w-[900px]">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tanggal</th>
+                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tgl Transaksi</th>
                             <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Customer & Properti</th>
                             <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tagihan & Status</th>
                             <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-right">Telah Dibayar</th>
@@ -359,9 +374,9 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                         <?php foreach ($data_pemasukan as $in) : 
                             $total_tagihan = $in['jumlahtransaksi'] - $in['diskontransaksi'] + $in['jumlah_charge'];
                             $kurang_bayar = $total_tagihan - $in['jumlah_bayar'];
-                            $status_badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200 animate-pulse';
+                            $status_badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200 animate-pulse';
                         ?>
-                        <tr class="hover:bg-gray-50 transition-colors <?= $in['status_bayar'] === 'Belum Lunas' ? 'bg-red-50/40' : '' ?>">
+                        <tr class="hover:bg-gray-50 transition-colors <?= $in['status_bayar'] === 'Belum Lunas' ? 'bg-orange-50/40' : '' ?>">
                             <td class="py-3 px-4">
                                 <p class="text-sm font-bold text-gray-800"><?= date('d M Y', strtotime($in['tanggaltransaksi'])) ?></p>
                                 <p class="text-xs text-gray-500 mt-1">Trx: #<?= $in['id_transaksi'] ?></p>
@@ -375,7 +390,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                                     <span class="border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider <?= $status_badge ?>"><?= htmlspecialchars($in['status_bayar']) ?></span>
                                 </div>
                                 <p class="text-sm font-semibold text-gray-700">Rp <?= number_format($total_tagihan, 0, ',', '.') ?></p>
-                                <?php if($in['status_bayar'] === 'Belum Lunas'): ?><p class="text-xs font-bold text-red-500 mt-0.5">Kurang: Rp <?= number_format($kurang_bayar, 0, ',', '.') ?></p><?php endif; ?>
+                                <?php if($in['status_bayar'] === 'Belum Lunas'): ?><p class="text-xs font-bold text-orange-600 mt-0.5">Kurang: Rp <?= number_format($kurang_bayar, 0, ',', '.') ?></p><?php endif; ?>
                             </td>
                             <td class="py-3 px-4 text-right">
                                 <p class="text-sm font-black text-green-600">Rp <?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></p>
@@ -384,7 +399,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                             <td class="py-3 px-4">
                                 <div class="flex justify-center items-center gap-2">
                                     <?php if($in['status_bayar'] === 'Belum Lunas'): ?>
-                                        <button onclick="bukaModalBayar(<?= $in['id_transaksi'] ?>, '<?= htmlspecialchars($in['namacustomer']) ?>', <?= $kurang_bayar ?>)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm">Bayar</button>
+                                        <button onclick="bukaModalBayar(<?= $in['id_transaksi'] ?>, '<?= htmlspecialchars($in['namacustomer']) ?>', <?= $kurang_bayar ?>)" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm">Bayar</button>
                                     <?php endif; ?>
                                     <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded text-xs font-bold">Cetak</a>
                                     <?php if ($role_aktif === 'super admin'): ?>
@@ -529,9 +544,9 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
     </div>
 </div> <div id="modal_bayar" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div class="bg-green-600 px-6 py-4 flex justify-between items-center">
+        <div class="bg-orange-500 px-6 py-4 flex justify-between items-center">
             <h3 class="font-bold text-white text-lg">Update Pembayaran / Cicilan</h3>
-            <button type="button" onclick="tutupModalBayar()" class="text-white hover:text-green-200 font-bold text-xl">&times;</button>
+            <button type="button" onclick="tutupModalBayar()" class="text-white hover:text-orange-200 font-bold text-xl">&times;</button>
         </div>
         <form action="keuangan.php" method="POST" onsubmit="return validasiModalBayar(event)" class="p-6">
             <input type="hidden" name="id_transaksi_bayar" id="input_id_transaksi">
@@ -540,21 +555,21 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                 <p class="font-bold text-gray-800" id="display_nama_cust"></p>
             </div>
             <div class="mb-5 bg-red-50 p-3 rounded border border-red-200">
-                <p class="text-xs text-red-500 font-bold uppercase tracking-wider mb-1">Sisa Kurang Bayar</p>
+                <p class="text-xs text-red-500 font-bold uppercase tracking-wider mb-1">Sisa Kurang Bayar (Piutang)</p>
                 <p class="text-xl font-black text-red-600" id="display_sisa_bayar"></p>
                 <p class="text-[10px] text-red-400 mt-1">*Hati-hati! Jangan input melebihi nominal ini.</p>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Tanggal Transfer/Bayar <span class="text-red-500">*</span></label>
-                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none bg-white">
+                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white">
             </div>
             <div class="mb-6">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nominal Pembayaran (Rp) <span class="text-red-500">*</span></label>
-                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
+                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-orange-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
             </div>
             <div class="flex gap-3 justify-end mt-2">
                 <button type="button" onclick="tutupModalBayar()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors">Batal</button>
-                <button type="submit" name="proses_bayar" class="px-5 py-2.5 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition-colors shadow-md">Simpan Pembayaran</button>
+                <button type="submit" name="proses_bayar" class="px-5 py-2.5 bg-orange-500 text-white rounded font-bold hover:bg-orange-600 transition-colors shadow-md">Simpan Pembayaran</button>
             </div>
         </form>
     </div>

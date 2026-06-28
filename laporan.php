@@ -38,8 +38,8 @@ if (!empty($filter_kost)) {
     $nama_kost_label = strtoupper($stmt_nama->fetchColumn());
 }
 
-// Setup Parameter Query
-$where_in = "t.tanggal_bayar BETWEEN ? AND ?";
+// Setup Parameter Query (DIUPDATE: Pemasukan menggunakan tanggaltransaksi)
+$where_in = "t.tanggaltransaksi BETWEEN ? AND ?";
 $where_out = "p.tanggalpengeluaran BETWEEN ? AND ?";
 $where_kamar = "";
 $params = [$tanggal_mulai, $tanggal_selesai];
@@ -51,17 +51,28 @@ if (!empty($filter_kost)) {
     $params[] = $filter_kost;
 }
 
-// 1. AGREGASI PEMASUKAN
-$stmt_sum_in = $koneksi->prepare("SELECT SUM(t.jumlah_bayar) FROM table_transaksi t JOIN table_kamar k ON t.id_kamar = k.id_kamar WHERE $where_in");
+// 1. AGREGASI PEMASUKAN & PIUTANG (ACCRUAL BASIS)
+$stmt_sum_in = $koneksi->prepare("
+    SELECT 
+        SUM(t.jumlahtransaksi - t.diskontransaksi + t.jumlah_charge) as total_tagihan,
+        SUM(t.jumlah_bayar) as uang_diterima
+    FROM table_transaksi t 
+    JOIN table_kamar k ON t.id_kamar = k.id_kamar 
+    WHERE $where_in
+");
 $stmt_sum_in->execute($params);
-$total_pemasukan = $stmt_sum_in->fetchColumn() ?: 0;
+$hasil_sum = $stmt_sum_in->fetch(PDO::FETCH_ASSOC);
+
+$total_pendapatan = $hasil_sum['total_tagihan'] ?: 0;
+$total_pemasukan_riil = $hasil_sum['uang_diterima'] ?: 0;
+$total_piutang = $total_pendapatan - $total_pemasukan_riil;
 
 // 2. AGREGASI PENGELUARAN
 $stmt_sum_out = $koneksi->prepare("SELECT SUM(p.jumlahpengeluaran) FROM table_pengeluaran p WHERE $where_out");
 $stmt_sum_out->execute($params);
 $total_pengeluaran = $stmt_sum_out->fetchColumn() ?: 0;
 
-$saldo_bersih = $total_pemasukan - $total_pengeluaran;
+$saldo_bersih = $total_pemasukan_riil - $total_pengeluaran; // Saldo berdasarkan uang di tangan
 
 // 3. STATISTIK OKUPANSI (Kondisi Terkini)
 $param_kamar = !empty($filter_kost) ? [$filter_kost] : [];
@@ -72,14 +83,17 @@ $kamar_isi = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE LOWER(sta
 $kamar_ksg = $koneksi->prepare("SELECT COUNT(*) FROM table_kamar WHERE LOWER(status_kamar) = 'kosong' $where_kamar"); $kamar_ksg->execute($param_kamar); $ksg_kmr = $kamar_ksg->fetchColumn();
 $persentase = ($tot_kmr > 0) ? round(($isi_kmr / $tot_kmr) * 100, 1) : 0;
 
-// 4. RINCIAN TABEL PEMASUKAN (Hanya yang ada pembayaran masuk di bulan tsb)
+// 4. RINCIAN TABEL PEMASUKAN (Semua transaksi di bulan tersebut termasuk Piutang)
 $query_list_in = "
-    SELECT t.tanggal_bayar, c.namacustomer, k.nomor_kamar, t.namatransaksi, t.jumlah_bayar
+    SELECT 
+        t.tanggaltransaksi, t.tanggal_bayar, c.namacustomer, k.nomor_kamar, 
+        t.namatransaksi, t.jumlahtransaksi, t.diskontransaksi, t.jumlah_charge, 
+        t.jumlah_bayar, t.status_bayar
     FROM table_transaksi t
     JOIN table_customer c ON t.id_customer = c.id_customer
     JOIN table_kamar k ON t.id_kamar = k.id_kamar
-    WHERE $where_in AND t.jumlah_bayar > 0
-    ORDER BY t.tanggal_bayar ASC
+    WHERE $where_in
+    ORDER BY t.tanggaltransaksi ASC
 ";
 $stmt_list_in = $koneksi->prepare($query_list_in);
 $stmt_list_in->execute($params);
@@ -128,7 +142,6 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body class="bg-gray-100 p-2 sm:p-4 md:p-8 min-h-screen text-gray-800 font-sans">
 
-    <!-- PANEL PENGATURAN (Sembunyi saat diprint) -->
     <div class="max-w-4xl mx-auto mb-6 md:mb-8 bg-white p-4 md:p-6 rounded-lg shadow-md border-t-4 border-blue-600 no-print">
         <div class="flex justify-between items-center border-b pb-4 mb-4">
             <h2 class="text-lg md:text-xl font-bold text-gray-800">Pengaturan Laporan</h2>
@@ -170,10 +183,8 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
         </form>
     </div>
 
-    <!-- KERTAS LAPORAN (Area yang diprint) -->
     <div class="max-w-4xl mx-auto bg-white p-4 sm:p-8 md:p-12 shadow-lg print-shadow-none print-border rounded">
         
-        <!-- HEADER KOP SURAT (Responsive) -->
         <div class="flex border-b-4 border-gray-900 pb-4 md:pb-6 mb-6 md:mb-8 items-center gap-3 md:gap-6">
             <img src="logo.jpg" alt="Logo" class="h-16 w-16 md:h-24 md:w-24 object-contain rounded bg-black p-1 shrink-0">
             <div class="flex-1">
@@ -188,34 +199,37 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
         
-        <!-- Pengecualian view mobile untuk tampilan kanan header -->
         <div class="sm:hidden mb-6 bg-gray-50 p-3 border border-gray-200 text-center rounded">
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Periode Laporan</p>
             <p class="text-lg font-black text-blue-800 uppercase"><?= $periode_cetak ?></p>
             <p class="text-xs font-bold text-gray-600 mt-0.5"><?= $nama_kost_label ?></p>
         </div>
 
-        <!-- SUMMARY CARDS -->
-        <!-- Gunakan class print-grid-cols-2 agar tetap 2 kolom di kertas walaupun di HP 1 kolom -->
         <div class="grid grid-cols-1 md:grid-cols-2 print-grid-cols-2 gap-4 mb-8 md:mb-10">
-            <!-- Box Keuangan -->
             <div class="border-2 border-gray-200 rounded-lg p-4 md:p-5">
-                <h3 class="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 md:mb-4 border-b pb-2">Ringkasan Arus Kas</h3>
+                <h3 class="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 md:mb-4 border-b pb-2">Ringkasan Arus Kas & Piutang</h3>
                 <div class="flex justify-between text-xs md:text-sm mb-2">
-                    <span class="font-semibold text-gray-600">Total Pemasukan Masuk</span>
-                    <span class="font-bold text-green-600">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></span>
+                    <span class="font-semibold text-gray-600">Total Tagihan (Omset)</span>
+                    <span class="font-bold text-gray-800">Rp <?= number_format($total_pendapatan, 0, ',', '.') ?></span>
+                </div>
+                <div class="flex justify-between text-xs md:text-sm mb-2">
+                    <span class="font-semibold text-gray-600">Kas Masuk (Riil)</span>
+                    <span class="font-bold text-green-600">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></span>
+                </div>
+                <div class="flex justify-between text-xs md:text-sm mb-2">
+                    <span class="font-semibold text-gray-600">Piutang (Belum Bayar)</span>
+                    <span class="font-bold text-orange-500">Rp <?= number_format($total_piutang, 0, ',', '.') ?></span>
                 </div>
                 <div class="flex justify-between text-xs md:text-sm mb-3">
                     <span class="font-semibold text-gray-600">Total Pengeluaran</span>
                     <span class="font-bold text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></span>
                 </div>
                 <div class="flex justify-between border-t border-gray-200 pt-2 mt-2">
-                    <span class="font-black text-gray-800 text-base md:text-lg uppercase">Saldo Bersih</span>
+                    <span class="font-black text-gray-800 text-base md:text-lg uppercase">Saldo Bersih Kas</span>
                     <span class="font-black text-base md:text-lg <?= $saldo_bersih >= 0 ? 'text-blue-700' : 'text-red-600' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></span>
                 </div>
             </div>
             
-            <!-- Box Okupansi -->
             <div class="border-2 border-gray-200 rounded-lg p-4 md:p-5">
                 <h3 class="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 md:mb-4 border-b pb-2">Statistik Properti</h3>
                 <div class="flex justify-between text-xs md:text-sm mb-2">
@@ -237,7 +251,6 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
 
-        <!-- TABEL REKAP PENGELUARAN -->
         <h3 class="text-[11px] md:text-sm font-bold text-gray-800 uppercase tracking-widest mb-3 border-b-2 border-red-500 inline-block pb-1">Beban Operasional & Pengeluaran</h3>
         <div class="overflow-x-auto print:overflow-visible w-full mb-8 md:mb-10">
             <table class="w-full text-left border border-gray-300 min-w-[500px] md:min-w-full">
@@ -270,42 +283,54 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
             </table>
         </div>
 
-        <!-- TABEL RINCIAN PEMASUKAN -->
-        <h3 class="text-[11px] md:text-sm font-bold text-gray-800 uppercase tracking-widest mb-3 border-b-2 border-green-500 inline-block pb-1">Rincian Arus Kas Masuk (Penerimaan Sewa)</h3>
+        <h3 class="text-[11px] md:text-sm font-bold text-gray-800 uppercase tracking-widest mb-3 border-b-2 border-green-500 inline-block pb-1">Rincian Transaksi Sewa (Omset & Kas)</h3>
         <div class="overflow-x-auto print:overflow-visible w-full mb-8 md:mb-10">
             <table class="w-full text-left border border-gray-300 text-xs md:text-sm min-w-[600px] md:min-w-full">
                 <thead class="bg-gray-100">
                     <tr>
-                        <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300">Tanggal</th>
+                        <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300">Tanggal Trx</th>
                         <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300">Penyewa</th>
-                        <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300 text-center">Kamar</th>
-                        <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300 text-right">Nominal Masuk (Rp)</th>
+                        <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300 text-right">Tagihan & Status</th>
+                        <th class="py-2 px-3 md:px-4 text-[11px] md:text-xs font-bold text-gray-700 border-b border-gray-300 text-right">Kas Diterima (Rp)</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     <?php if (empty($rincian_pemasukan)): ?>
-                        <tr><td colspan="4" class="py-4 text-center text-gray-500 italic">Nihil / Tidak ada pembayaran masuk di bulan ini.</td></tr>
+                        <tr><td colspan="4" class="py-4 text-center text-gray-500 italic">Nihil / Tidak ada transaksi masuk di bulan ini.</td></tr>
                     <?php else: ?>
-                        <?php foreach ($rincian_pemasukan as $in): ?>
+                        <?php foreach ($rincian_pemasukan as $in): 
+                            $tagihan = $in['jumlahtransaksi'] - $in['diskontransaksi'] + $in['jumlah_charge'];
+                            $kurang = $tagihan - $in['jumlah_bayar'];
+                            $badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
+                        ?>
                         <tr>
-                            <td class="py-2 px-3 md:px-4 text-gray-600"><?= date('d/m/Y', strtotime($in['tanggal_bayar'])) ?></td>
-                            <td class="py-2 px-3 md:px-4 font-semibold text-gray-800"><?= htmlspecialchars($in['namacustomer']) ?></td>
-                            <td class="py-2 px-3 md:px-4 text-center text-gray-600"><?= htmlspecialchars($in['nomor_kamar']) ?></td>
-                            <td class="py-2 px-3 md:px-4 text-right font-bold text-green-600"><?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></td>
+                            <td class="py-2 px-3 md:px-4 text-gray-600"><?= date('d/m/Y', strtotime($in['tanggaltransaksi'])) ?></td>
+                            <td class="py-2 px-3 md:px-4">
+                                <span class="font-semibold text-gray-800"><?= htmlspecialchars($in['namacustomer']) ?></span><br>
+                                <span class="text-[10px] md:text-xs text-gray-500">Kamar <?= htmlspecialchars($in['nomor_kamar']) ?></span>
+                            </td>
+                            <td class="py-2 px-3 md:px-4 text-right">
+                                <span class="border px-1 py-0.5 rounded text-[9px] md:text-[10px] font-bold uppercase tracking-wider <?= $badge ?> float-left mt-0.5"><?= $in['status_bayar'] ?></span>
+                                <span class="font-bold text-gray-700"><?= number_format($tagihan, 0, ',', '.') ?></span>
+                            </td>
+                            <td class="py-2 px-3 md:px-4 text-right">
+                                <span class="font-bold text-green-600"><?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></span>
+                                <?php if($kurang > 0): ?><br><span class="text-[10px] text-orange-500 font-bold">Krg: <?= number_format($kurang, 0, ',', '.') ?></span><?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
                 <tfoot class="bg-gray-50 font-bold border-t-2 border-gray-300">
                     <tr>
-                        <td colspan="3" class="py-2 px-3 md:px-4 text-right text-[10px] md:text-xs uppercase tracking-wider">Total Kas Masuk Diterima:</td>
-                        <td class="py-2 px-3 md:px-4 text-right text-green-700 text-xs md:text-sm">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></td>
+                        <td colspan="2" class="py-2 px-3 md:px-4 text-right text-[10px] md:text-xs uppercase tracking-wider">Total Pembukuan:</td>
+                        <td class="py-2 px-3 md:px-4 text-right text-gray-700 text-xs md:text-sm">Tagihan: Rp <?= number_format($total_pendapatan, 0, ',', '.') ?></td>
+                        <td class="py-2 px-3 md:px-4 text-right text-green-700 text-xs md:text-sm">Riil: Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></td>
                     </tr>
                 </tfoot>
             </table>
         </div>
 
-        <!-- KOLOM TANDA TANGAN -->
         <div class="mt-12 md:mt-16 flex justify-end">
             <div class="text-center w-48 md:w-64">
                 <p class="text-xs md:text-sm font-semibold text-gray-600 mb-16 md:mb-20">Pontianak, <?= date('d F Y') ?></p>

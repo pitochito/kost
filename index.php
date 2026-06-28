@@ -115,16 +115,27 @@ $stmt_belum_lunas = $koneksi->prepare($query_belum_lunas);
 $stmt_belum_lunas->execute($param_filter);
 $data_belum_lunas = $stmt_belum_lunas->fetchAll(PDO::FETCH_ASSOC);
 
-// 7. KALKULASI KEUANGAN
-$stmt_in = $koneksi->prepare("SELECT SUM(t.jumlah_bayar) FROM table_transaksi t JOIN table_kamar k ON t.id_kamar = k.id_kamar WHERE 1=1 $where_transaksi");
+// 7. KALKULASI KEUANGAN (PIUTANG & KAS RIIL)
+$stmt_in = $koneksi->prepare("
+    SELECT 
+        SUM(t.jumlahtransaksi - t.diskontransaksi + t.jumlah_charge) as total_tagihan,
+        SUM(t.jumlah_bayar) as uang_diterima
+    FROM table_transaksi t 
+    JOIN table_kamar k ON t.id_kamar = k.id_kamar 
+    WHERE 1=1 $where_transaksi
+");
 $stmt_in->execute($param_filter);
-$total_pemasukan = $stmt_in->fetchColumn() ?: 0;
+$hasil_sum = $stmt_in->fetch(PDO::FETCH_ASSOC);
+
+$total_pendapatan = $hasil_sum['total_tagihan'] ?: 0;
+$total_pemasukan_riil = $hasil_sum['uang_diterima'] ?: 0;
+$total_piutang = $total_pendapatan - $total_pemasukan_riil;
 
 $stmt_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran $where_pengeluaran");
 $stmt_out->execute($param_filter);
 $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 
-$saldo_bersih = $total_pemasukan - $total_pengeluaran;
+$saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -136,7 +147,6 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
     </div>
     
     <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
-        <!-- Filter Lokasi -->
         <form action="index.php" method="GET" class="w-full sm:w-auto">
             <select name="filter_kost" onchange="this.form.submit()" class="block w-full sm:w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
                 <option value="">Semua Lokasi (Global)</option>
@@ -148,7 +158,6 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
             </select>
         </form>
         
-        <!-- Tombol Cetak Laporan -->
         <a href="laporan.php?kost=<?= $filter_kost ?>" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2 text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             Laporan Bulanan
@@ -277,7 +286,7 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
                         <p class="text-[10px] text-gray-500 font-semibold mt-0.5">Total Tagihan: <?= number_format($tot_tagihan, 0, ',', '.') ?></p>
                     </td>
                     <td class="py-3 px-2 text-center">
-                        <a href="keuangan.php?status_filter=Belum+Lunas" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition-colors">
+                        <a href="keuangan.php?in_status=Belum+Lunas#section_pemasukan" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition-colors">
                             Bayar di Keuangan
                         </a>
                     </td>
@@ -291,21 +300,25 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 
 <div class="mt-8 mb-6">
     <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
-        <h2 class="text-xl font-bold text-gray-800">Ringkasan Arus Kas</h2>
+        <h2 class="text-xl font-bold text-gray-800">Ringkasan Arus Kas & Piutang</h2>
         <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold bg-blue-50 px-3 py-1 rounded-full">Buka Buku Besar &rarr;</a>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Pemasukan (Telah Dibayar)</p>
-            <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan, 0, ',', '.') ?></p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
+            <p class="text-xl font-black text-green-600">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></p>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pengeluaran</p>
-            <p class="text-2xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-orange-100 border-l-4 border-l-orange-500 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang (Belum Dibayar)</p>
+            <p class="text-xl font-black text-orange-500">Rp <?= number_format($total_piutang, 0, ',', '.') ?></p>
         </div>
-        <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Bersih Saat Ini</p>
-            <p class="text-2xl font-black text-yellow-500">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Pengeluaran</p>
+            <p class="text-xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
+        </div>
+        <div class="bg-gray-900 p-5 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih Kas</p>
+            <p class="text-xl font-black <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
         </div>
     </div>
 </div>
@@ -314,7 +327,7 @@ $saldo_bersih = $total_pemasukan - $total_pengeluaran;
 document.addEventListener("DOMContentLoaded", function() {
     const kmrIsi = <?= $kamar_isi ?>;
     const kmrKosong = <?= $kamar_kosong ?>;
-    const kasMasuk = <?= $total_pemasukan ?>;
+    const kasMasuk = <?= $total_pemasukan_riil ?>;
     const kasKeluar = <?= $total_pengeluaran ?>;
 
     const ctxOcc = document.getElementById('occupancyChart').getContext('2d');
@@ -333,7 +346,7 @@ document.addEventListener("DOMContentLoaded", function() {
         data: {
             labels: ['Arus Kas'],
             datasets: [
-                { label: 'Pemasukan', data: [kasMasuk], backgroundColor: '#16a34a', borderRadius: 4 },
+                { label: 'Pemasukan (Riil)', data: [kasMasuk], backgroundColor: '#16a34a', borderRadius: 4 },
                 { label: 'Pengeluaran', data: [kasKeluar], backgroundColor: '#dc2626', borderRadius: 4 }
             ]
         },
