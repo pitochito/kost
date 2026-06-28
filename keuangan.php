@@ -4,7 +4,6 @@ require 'header.php';
 
 $pesan_sukses = '';
 
-// Ambil pesan sukses dari URL jika ada
 if (isset($_GET['pesan'])) {
     if ($_GET['pesan'] == 'sukses_hapus') {
         $pesan_sukses = "Data pengeluaran berhasil dihapus.";
@@ -15,9 +14,6 @@ if (isset($_GET['pesan'])) {
     }
 }
 
-// ==========================================
-// 1. PROSES AKSI DATABASE (HAPUS & BAYAR)
-// ==========================================
 if (isset($_GET['hapus'])) {
     $id_hapus = $_GET['hapus'];
     $stmt_hapus = $koneksi->prepare("DELETE FROM table_pengeluaran WHERE id_pengeluaran = ?");
@@ -62,16 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_bayar'])) {
     }
 }
 
-// ==========================================
-// 2. DATA REFERENSI UNTUK DROPDOWN
-// ==========================================
 $stmt_kost = $koneksi->query("SELECT id_kost, nama_kost FROM table_kost ORDER BY nama_kost ASC");
 $list_kost_db = $stmt_kost->fetchAll(PDO::FETCH_ASSOC);
 
 $stmt_kat = $koneksi->query("SELECT DISTINCT kategoripengeluaran FROM table_pengeluaran ORDER BY kategoripengeluaran ASC");
 $list_kategori_db = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
 
-// HELPER: Pertahankan Parameter URL lainnya saat filter form disubmit
 function hiddenParamsHtml($exclude_prefix) {
     $html = '';
     foreach ($_GET as $key => $value) {
@@ -89,7 +81,7 @@ function buildPaginateUrl($params_to_update) {
 }
 
 // ==========================================
-// BAGIAN 1: LOGIKA RINGKASAN ARUS KAS
+// BAGIAN 1: LOGIKA RINGKASAN
 // ==========================================
 $sum_tipe = $_GET['sum_tipe'] ?? 'bulan';
 $sum_bulan = $_GET['sum_bulan'] ?? date('Y-m');
@@ -116,7 +108,7 @@ $saldo_bersih_sum = $total_pemasukan_sum - $total_pengeluaran_sum;
 
 
 // ==========================================
-// BAGIAN 2: LOGIKA TABEL PEMASUKAN
+// BAGIAN 2: LOGIKA PEMASUKAN
 // ==========================================
 $in_tipe = $_GET['in_tipe'] ?? 'bulan';
 $in_bulan = $_GET['in_bulan'] ?? date('Y-m');
@@ -168,7 +160,7 @@ $show_in = isset($_GET['filter_in']) || isset($_GET['page_in']);
 
 
 // ==========================================
-// BAGIAN 3: LOGIKA TABEL PENGELUARAN
+// BAGIAN 3: LOGIKA PENGELUARAN
 // ==========================================
 $out_tipe = $_GET['out_tipe'] ?? 'bulan';
 $out_bulan = $_GET['out_bulan'] ?? date('Y-m');
@@ -217,329 +209,325 @@ $data_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
 $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
 ?>
 
-<div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-    <div>
-        <h2 class="text-2xl font-bold text-gray-800">Buku Besar Keuangan</h2>
-        <p class="text-sm text-gray-500 mt-1">Pantau arus kas, pendapatan sewa, dan pengeluaran operasional Anda.</p>
-    </div>
-    <div class="flex gap-2">
-        <a href="form_pengeluaran.php" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors shadow-sm whitespace-nowrap">
-            - Catat Pengeluaran
-        </a>
-    </div>
-</div>
-
-<?php if ($pesan_sukses): ?>
-    <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold"><?= $pesan_sukses ?></div>
-<?php endif; ?>
-
-<div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
-    <div class="flex justify-between items-center mb-4 border-b pb-2">
-        <h3 class="font-bold text-gray-800 text-lg">Ringkasan Arus Kas</h3>
-    </div>
-    
-    <form action="keuangan.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <?= hiddenParamsHtml('sum_') ?>
-        <input type="hidden" name="filter_sum" value="1">
-        
+<div class="pb-24">
+    <div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Metode Waktu</label>
-            <select name="sum_tipe" id="sum_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white" onchange="toggleDateSum()">
-                <option value="bulan" <?= $sum_tipe == 'bulan' ? 'selected' : '' ?>>Per Bulan</option>
-                <option value="rentang" <?= $sum_tipe == 'rentang' ? 'selected' : '' ?>>Rentang Tanggal</option>
-            </select>
+            <h2 class="text-2xl font-bold text-gray-800">Buku Besar Keuangan</h2>
+            <p class="text-sm text-gray-500 mt-1">Pantau arus kas, pendapatan sewa, dan pengeluaran operasional Anda.</p>
         </div>
-        
-        <div id="sum_wrap_bulan" class="<?= $sum_tipe == 'bulan' ? 'block' : 'hidden' ?>">
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pilih Bulan</label>
-            <input type="month" name="sum_bulan" value="<?= $sum_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
-        </div>
-        
-        <div id="sum_wrap_rentang" class="<?= $sum_tipe == 'rentang' ? 'flex' : 'hidden' ?> gap-2">
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dari</label>
-                <input type="date" name="sum_start" value="<?= $sum_start ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai</label>
-                <input type="date" name="sum_end" value="<?= $sum_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
-            </div>
-        </div>
-        
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors">Lihat Ringkasan</button>
-    </form>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-green-50 p-6 rounded-xl border border-green-200 border-l-4 border-l-green-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Pemasukan (Telah Dibayar)</p>
-            <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan_sum, 0, ',', '.') ?></p>
-        </div>
-        <div class="bg-red-50 p-6 rounded-xl border border-red-200 border-l-4 border-l-red-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Total Pengeluaran</p>
-            <p class="text-2xl font-black text-red-600">Rp <?= number_format($total_pengeluaran_sum, 0, ',', '.') ?></p>
-        </div>
-        <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Bersih (Kas Riil)</p>
-            <p class="text-2xl font-black <?= $saldo_bersih_sum >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">
-                Rp <?= number_format($saldo_bersih_sum, 0, ',', '.') ?>
-            </p>
-        </div>
-    </div>
-</div>
-
-
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all">
-    <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pemasukan', 'icon_pemasukan')">
-        <h3 class="font-bold text-green-800 flex items-center gap-2 text-lg">
-            <svg id="icon_pemasukan" class="w-6 h-6 transition-transform duration-300 <?= $show_in ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
-            Pemasukan Sewa (<?= $total_data_in ?> Data Ditemukan)
-        </h3>
-        <?php if ($role_aktif === 'super admin'): ?>
-            <a href="form_transaksi.php" onclick="event.stopPropagation();" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow-sm transition-colors flex items-center gap-1">
-                + Tambah Manual
+        <div class="flex gap-2">
+            <a href="form_pengeluaran.php" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors shadow-sm whitespace-nowrap">
+                - Catat Pengeluaran
             </a>
-        <?php endif; ?>
+        </div>
     </div>
-    
-    <div id="wrapper_pemasukan" class="<?= $show_in ? 'block' : 'hidden' ?>">
-        
-        <form action="keuangan.php" method="GET" class="p-5 border-b border-gray-200 bg-white space-y-4">
-            <?= hiddenParamsHtml('in_') ?>
-            <input type="hidden" name="filter_in" value="1">
-            <input type="hidden" name="page_in" value="1"> <div class="flex flex-wrap gap-4 items-end">
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
-                    <select name="in_tipe" id="in_tipe" class="border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm" onchange="toggleDateIn()">
-                        <option value="bulan" <?= $in_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
-                        <option value="rentang" <?= $in_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
-                    </select>
-                </div>
-                <div id="in_wrap_bulan" class="<?= $in_tipe == 'bulan' ? 'block' : 'hidden' ?>">
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
-                    <input type="month" name="in_bulan" value="<?= $in_bulan ?>" class="border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm">
-                </div>
-                <div id="in_wrap_rentang" class="<?= $in_tipe == 'rentang' ? 'flex' : 'hidden' ?> gap-2">
-                    <div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="in_start" value="<?= $in_start ?>" class="border px-3 py-2 rounded text-sm"></div>
-                    <div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="in_end" value="<?= $in_end ?>" class="border px-3 py-2 rounded text-sm"></div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-                    <select name="in_kost" class="border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm">
-                        <option value="">Semua Lokasi</option>
-                        <?php foreach($list_kost_db as $k): ?>
-                            <option value="<?= $k['id_kost'] ?>" <?= $in_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-                    <select name="in_status" class="border border-gray-300 px-3 py-2 rounded text-sm">
-                        <option value="">Semua Status</option>
-                        <option value="Lunas" <?= $in_status == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
-                        <option value="Belum Lunas" <?= $in_status == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
-                    <select name="in_limit" class="border border-gray-300 px-3 py-2 rounded text-sm">
-                        <option value="10" <?= $in_limit == '10' ? 'selected' : '' ?>>10</option>
-                        <option value="25" <?= $in_limit == '25' ? 'selected' : '' ?>>25</option>
-                        <option value="50" <?= $in_limit == '50' ? 'selected' : '' ?>>50</option>
-                        <option value="Semua" <?= $in_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
-                    </select>
-                </div>
-                <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-green-700">Filter Data</button>
-            </div>
-        </form>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[1000px]">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tanggal</th>
-                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Customer & Properti</th>
-                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tagihan & Status</th>
-                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-right">Telah Dibayar</th>
-                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    <?php foreach ($data_pemasukan as $in) : 
-                        $total_tagihan = $in['jumlahtransaksi'] - $in['diskontransaksi'] + $in['jumlah_charge'];
-                        $kurang_bayar = $total_tagihan - $in['jumlah_bayar'];
-                        $status_badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200 animate-pulse';
-                    ?>
-                    <tr class="hover:bg-gray-50 transition-colors <?= $in['status_bayar'] === 'Belum Lunas' ? 'bg-red-50/40' : '' ?>">
-                        <td class="py-3 px-4">
-                            <p class="text-sm font-bold text-gray-800"><?= date('d M Y', strtotime($in['tanggaltransaksi'])) ?></p>
-                            <p class="text-xs text-gray-500 mt-1">Trx: #<?= $in['id_transaksi'] ?></p>
-                        </td>
-                        <td class="py-3 px-4">
-                            <p class="text-sm font-bold text-gray-800"><?= htmlspecialchars($in['namacustomer']) ?></p>
-                            <p class="text-xs font-semibold text-gray-600 mt-0.5"><?= htmlspecialchars($in['nama_kost']) ?> - Kmr <?= htmlspecialchars($in['nomor_kamar']) ?></p>
-                        </td>
-                        <td class="py-3 px-4">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider <?= $status_badge ?>"><?= htmlspecialchars($in['status_bayar']) ?></span>
-                            </div>
-                            <p class="text-sm font-semibold text-gray-700">Rp <?= number_format($total_tagihan, 0, ',', '.') ?></p>
-                            <?php if($in['status_bayar'] === 'Belum Lunas'): ?><p class="text-xs font-bold text-red-500 mt-0.5">Kurang: Rp <?= number_format($kurang_bayar, 0, ',', '.') ?></p><?php endif; ?>
-                        </td>
-                        <td class="py-3 px-4 text-right">
-                            <p class="text-sm font-black text-green-600">Rp <?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></p>
-                            <p class="text-[10px] text-gray-400 font-semibold mt-1">Update: <?= date('d/m/Y', strtotime($in['tanggal_bayar'])) ?></p>
-                        </td>
-                        <td class="py-3 px-4">
-                            <div class="flex justify-center items-center gap-2">
-                                <?php if($in['status_bayar'] === 'Belum Lunas'): ?>
-                                    <button onclick="bukaModalBayar(<?= $in['id_transaksi'] ?>, '<?= htmlspecialchars($in['namacustomer']) ?>', <?= $kurang_bayar ?>)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm">Bayar</button>
-                                <?php endif; ?>
-                                <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded text-xs font-bold">Cetak</a>
-                                <?php if ($role_aktif === 'super admin'): ?>
-                                    <a href="form_transaksi.php?edit=<?= $in['id_transaksi'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-2 py-1.5 rounded text-xs font-semibold">Edit</a>
-                                <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <?php if(empty($data_pemasukan)): ?>
-                    <tr><td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada data pemasukan pada filter ini.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+    <?php if ($pesan_sukses): ?>
+        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold"><?= $pesan_sukses ?></div>
+    <?php endif; ?>
+
+    <div class="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="font-bold text-gray-800 text-lg">Ringkasan Arus Kas</h3>
         </div>
         
-        <?php if($total_pages_in > 1): ?>
-        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
-            <span class="text-gray-600 font-medium">Halaman <?= $page_in ?> dari <?= $total_pages_in ?></span>
-            <div class="flex gap-2">
-                <?php if($page_in > 1): ?>
-                    <a href="<?= buildPaginateUrl(['page_in' => $page_in - 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">&larr; Prev</a>
-                <?php endif; ?>
-                <?php if($page_in < $total_pages_in): ?>
-                    <a href="<?= buildPaginateUrl(['page_in' => $page_in + 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">Next &rarr;</a>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
-    <div class="px-6 py-4 border-b border-gray-200 bg-red-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pengeluaran', 'icon_pengeluaran')">
-        <h3 class="font-bold text-red-800 flex items-center gap-2 text-lg">
-            <svg id="icon_pengeluaran" class="w-6 h-6 transition-transform duration-300 <?= $show_out ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
-            Pengeluaran Operasional (<?= $total_data_out ?> Data)
-        </h3>
-    </div>
-    
-    <div id="wrapper_pengeluaran" class="<?= $show_out ? 'block' : 'hidden' ?>">
-        
-        <form action="keuangan.php" method="GET" class="p-5 border-b border-gray-200 bg-white space-y-4">
-            <?= hiddenParamsHtml('out_') ?>
-            <input type="hidden" name="filter_out" value="1">
-            <input type="hidden" name="page_out" value="1">
+        <form action="keuangan.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <?= hiddenParamsHtml('sum_') ?>
+            <input type="hidden" name="filter_sum" value="1">
             
-            <div class="flex flex-wrap gap-4 items-end">
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
-                    <select name="out_tipe" id="out_tipe" class="border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm" onchange="toggleDateOut()">
-                        <option value="bulan" <?= $out_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
-                        <option value="rentang" <?= $out_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
-                    </select>
-                </div>
-                <div id="out_wrap_bulan" class="<?= $out_tipe == 'bulan' ? 'block' : 'hidden' ?>">
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
-                    <input type="month" name="out_bulan" value="<?= $out_bulan ?>" class="border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm">
-                </div>
-                <div id="out_wrap_rentang" class="<?= $out_tipe == 'rentang' ? 'flex' : 'hidden' ?> gap-2">
-                    <div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="out_start" value="<?= $out_start ?>" class="border px-3 py-2 rounded text-sm"></div>
-                    <div><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="out_end" value="<?= $out_end ?>" class="border px-3 py-2 rounded text-sm"></div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-                    <select name="out_kost" class="border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm">
-                        <option value="">Semua Lokasi</option>
-                        <?php foreach($list_kost_db as $k): ?>
-                            <option value="<?= $k['id_kost'] ?>" <?= $out_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kategori Biaya</label>
-                    <select name="out_kat" class="border border-gray-300 px-3 py-2 rounded text-sm">
-                        <option value="">Semua Kategori</option>
-                        <?php foreach($list_kategori_db as $kat): ?>
-                            <option value="<?= htmlspecialchars($kat) ?>" <?= $out_kat == $kat ? 'selected' : '' ?>><?= htmlspecialchars($kat) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
-                    <select name="out_limit" class="border border-gray-300 px-3 py-2 rounded text-sm">
-                        <option value="10" <?= $out_limit == '10' ? 'selected' : '' ?>>10</option>
-                        <option value="25" <?= $out_limit == '25' ? 'selected' : '' ?>>25</option>
-                        <option value="50" <?= $out_limit == '50' ? 'selected' : '' ?>>50</option>
-                        <option value="Semua" <?= $out_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
-                    </select>
-                </div>
-                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-red-700">Filter Data</button>
+            <div class="w-full md:w-auto">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Metode Waktu</label>
+                <select name="sum_tipe" id="sum_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white" onchange="toggleDateSum()">
+                    <option value="bulan" <?= $sum_tipe == 'bulan' ? 'selected' : '' ?>>Per Bulan</option>
+                    <option value="rentang" <?= $sum_tipe == 'rentang' ? 'selected' : '' ?>>Rentang Tanggal</option>
+                </select>
             </div>
+            
+            <div id="sum_wrap_bulan" class="w-full md:w-auto <?= $sum_tipe == 'bulan' ? 'block' : 'hidden' ?>">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pilih Bulan</label>
+                <input type="month" name="sum_bulan" value="<?= $sum_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+            </div>
+            
+            <div id="sum_wrap_rentang" class="w-full md:w-auto <?= $sum_tipe == 'rentang' ? 'flex flex-col sm:flex-row' : 'hidden' ?> gap-3 sm:gap-2">
+                <div class="flex-1 w-full sm:w-auto">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dari</label>
+                    <input type="date" name="sum_start" value="<?= $sum_start ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+                </div>
+                <div class="flex-1 w-full sm:w-auto">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai</label>
+                    <input type="date" name="sum_end" value="<?= $sum_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+                </div>
+            </div>
+            
+            <button type="submit" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors">Lihat Ringkasan</button>
         </form>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[800px]">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                        <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase">Tgl Pengeluaran</th>
-                        <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase">Lokasi Properti</th>
-                        <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase">Kategori & Rincian</th>
-                        <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase text-right">Nominal Keluar (Rp)</th>
-                        <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    <?php foreach ($data_pengeluaran as $out) : ?>
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="py-3 px-6 text-sm font-semibold text-gray-700"><?= date('d M Y', strtotime($out['tanggalpengeluaran'])) ?></td>
-                        <td class="py-3 px-6 text-sm font-bold text-gray-800"><?= htmlspecialchars($out['nama_kost'] ?? 'Semua / Biaya Pusat') ?></td>
-                        <td class="py-3 px-6 text-sm">
-                            <span class="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs font-bold mr-2"><?= htmlspecialchars($out['kategoripengeluaran']) ?></span>
-                            <span class="text-gray-600"><?= htmlspecialchars($out['namapengeluaran']) ?></span>
-                        </td>
-                        <td class="py-3 px-6 text-sm font-black text-red-600 text-right">- <?= number_format($out['jumlahpengeluaran'], 0, ',', '.') ?></td>
-                        <td class="py-3 px-6 flex justify-center gap-2">
-                            <a href="form_pengeluaran.php?edit=<?= $out['id_pengeluaran'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold">Edit</a>
-                            <a href="keuangan.php?hapus=<?= $out['id_pengeluaran'] ?>" onclick="return confirm('Hapus catatan pengeluaran ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold">Hapus</a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <?php if(empty($data_pengeluaran)): ?>
-                    <tr><td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada data pengeluaran pada filter ini.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-        
-        <?php if($total_pages_out > 1): ?>
-        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
-            <span class="text-gray-600 font-medium">Halaman <?= $page_out ?> dari <?= $total_pages_out ?></span>
-            <div class="flex gap-2">
-                <?php if($page_out > 1): ?>
-                    <a href="<?= buildPaginateUrl(['page_out' => $page_out - 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">&larr; Prev</a>
-                <?php endif; ?>
-                <?php if($page_out < $total_pages_out): ?>
-                    <a href="<?= buildPaginateUrl(['page_out' => $page_out + 1]) ?>" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">Next &rarr;</a>
-                <?php endif; ?>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-green-50 p-6 rounded-xl border border-green-200 border-l-4 border-l-green-500 flex flex-col justify-center">
+                <p class="text-sm font-semibold text-gray-500 mb-1">Pemasukan (Telah Dibayar)</p>
+                <p class="text-2xl font-black text-green-600">Rp <?= number_format($total_pemasukan_sum, 0, ',', '.') ?></p>
+            </div>
+            <div class="bg-red-50 p-6 rounded-xl border border-red-200 border-l-4 border-l-red-500 flex flex-col justify-center">
+                <p class="text-sm font-semibold text-gray-500 mb-1">Total Pengeluaran</p>
+                <p class="text-2xl font-black text-red-600">Rp <?= number_format($total_pengeluaran_sum, 0, ',', '.') ?></p>
+            </div>
+            <div class="bg-gray-900 p-6 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
+                <p class="text-sm font-semibold text-gray-400 mb-1">Saldo Bersih (Kas Riil)</p>
+                <p class="text-2xl font-black <?= $saldo_bersih_sum >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">
+                    Rp <?= number_format($saldo_bersih_sum, 0, ',', '.') ?>
+                </p>
             </div>
         </div>
-        <?php endif; ?>
     </div>
-</div>
 
+    <div id="section_pemasukan" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all scroll-mt-20">
+        <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pemasukan', 'icon_pemasukan', 'section_pemasukan')">
+            <h3 class="font-bold text-green-800 flex items-center gap-2 text-base md:text-lg">
+                <svg id="icon_pemasukan" class="w-5 h-5 md:w-6 md:h-6 transition-transform duration-300 <?= $show_in ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                Pemasukan Sewa <span class="hidden sm:inline">(<?= $total_data_in ?> Data)</span>
+            </h3>
+            <?php if ($role_aktif === 'super admin'): ?>
+                <a href="form_transaksi.php" onclick="event.stopPropagation();" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-3 md:px-4 rounded shadow-sm transition-colors flex items-center gap-1">
+                    + <span class="hidden sm:inline">Tambah Manual</span>
+                </a>
+            <?php endif; ?>
+        </div>
+        
+        <div id="wrapper_pemasukan" class="<?= $show_in ? 'block' : 'hidden' ?>">
+            <form action="keuangan.php" method="GET" class="p-4 md:p-5 border-b border-gray-200 bg-white space-y-4">
+                <?= hiddenParamsHtml('in_') ?>
+                <input type="hidden" name="filter_in" value="1">
+                <input type="hidden" name="page_in" value="1"> 
+                <div class="flex flex-col md:flex-row flex-wrap gap-4 items-end">
+                    <div class="w-full md:w-auto">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
+                        <select name="in_tipe" id="in_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white" onchange="toggleDateIn()">
+                            <option value="bulan" <?= $in_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
+                            <option value="rentang" <?= $in_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
+                        </select>
+                    </div>
+                    <div id="in_wrap_bulan" class="w-full md:w-auto <?= $in_tipe == 'bulan' ? 'block' : 'hidden' ?>">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
+                        <input type="month" name="in_bulan" value="<?= $in_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                    </div>
+                    <div id="in_wrap_rentang" class="w-full md:w-auto <?= $in_tipe == 'rentang' ? 'flex flex-row' : 'hidden' ?> gap-2">
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="in_start" value="<?= $in_start ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="in_end" value="<?= $in_end ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
+                    </div>
+                    <div class="w-full md:w-auto flex-1 min-w-[200px]">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
+                        <select name="in_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                            <option value="">Semua Lokasi</option>
+                            <?php foreach($list_kost_db as $k): ?>
+                                <option value="<?= $k['id_kost'] ?>" <?= $in_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="w-1/2 md:w-auto pr-2 md:pr-0">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                        <select name="in_status" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
+                            <option value="">Semua Status</option>
+                            <option value="Lunas" <?= $in_status == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
+                            <option value="Belum Lunas" <?= $in_status == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
+                        </select>
+                    </div>
+                    <div class="w-1/2 md:w-auto pl-2 md:pl-0">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
+                        <select name="in_limit" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
+                            <option value="10" <?= $in_limit == '10' ? 'selected' : '' ?>>10</option>
+                            <option value="25" <?= $in_limit == '25' ? 'selected' : '' ?>>25</option>
+                            <option value="50" <?= $in_limit == '50' ? 'selected' : '' ?>>50</option>
+                            <option value="Semua" <?= $in_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full md:w-auto mt-2 md:mt-0 bg-green-600 text-white px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-green-700">Filter Data</button>
+                </div>
+            </form>
 
-<div id="modal_bayar" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[900px]">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tanggal</th>
+                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Customer & Properti</th>
+                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Tagihan & Status</th>
+                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-right">Telah Dibayar</th>
+                            <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <?php foreach ($data_pemasukan as $in) : 
+                            $total_tagihan = $in['jumlahtransaksi'] - $in['diskontransaksi'] + $in['jumlah_charge'];
+                            $kurang_bayar = $total_tagihan - $in['jumlah_bayar'];
+                            $status_badge = ($in['status_bayar'] === 'Lunas') ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200 animate-pulse';
+                        ?>
+                        <tr class="hover:bg-gray-50 transition-colors <?= $in['status_bayar'] === 'Belum Lunas' ? 'bg-red-50/40' : '' ?>">
+                            <td class="py-3 px-4">
+                                <p class="text-sm font-bold text-gray-800"><?= date('d M Y', strtotime($in['tanggaltransaksi'])) ?></p>
+                                <p class="text-xs text-gray-500 mt-1">Trx: #<?= $in['id_transaksi'] ?></p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <p class="text-sm font-bold text-gray-800"><?= htmlspecialchars($in['namacustomer']) ?></p>
+                                <p class="text-xs font-semibold text-gray-600 mt-0.5"><?= htmlspecialchars($in['nama_kost']) ?> - Kmr <?= htmlspecialchars($in['nomor_kamar']) ?></p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider <?= $status_badge ?>"><?= htmlspecialchars($in['status_bayar']) ?></span>
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700">Rp <?= number_format($total_tagihan, 0, ',', '.') ?></p>
+                                <?php if($in['status_bayar'] === 'Belum Lunas'): ?><p class="text-xs font-bold text-red-500 mt-0.5">Kurang: Rp <?= number_format($kurang_bayar, 0, ',', '.') ?></p><?php endif; ?>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <p class="text-sm font-black text-green-600">Rp <?= number_format($in['jumlah_bayar'], 0, ',', '.') ?></p>
+                                <p class="text-[10px] text-gray-400 font-semibold mt-1">Update: <?= date('d/m/Y', strtotime($in['tanggal_bayar'])) ?></p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex justify-center items-center gap-2">
+                                    <?php if($in['status_bayar'] === 'Belum Lunas'): ?>
+                                        <button onclick="bukaModalBayar(<?= $in['id_transaksi'] ?>, '<?= htmlspecialchars($in['namacustomer']) ?>', <?= $kurang_bayar ?>)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm">Bayar</button>
+                                    <?php endif; ?>
+                                    <a href="invoice.php?id=<?= $in['id_transaksi'] ?>" class="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded text-xs font-bold">Cetak</a>
+                                    <?php if ($role_aktif === 'super admin'): ?>
+                                        <a href="form_transaksi.php?edit=<?= $in['id_transaksi'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-2 py-1.5 rounded text-xs font-semibold">Edit</a>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php if(empty($data_pemasukan)): ?>
+                        <tr><td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada data pemasukan pada filter ini.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <?php if($total_pages_in > 1): ?>
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
+                <span class="text-gray-600 font-medium">Halaman <?= $page_in ?> dari <?= $total_pages_in ?></span>
+                <div class="flex gap-2">
+                    <?php if($page_in > 1): ?>
+                        <a href="<?= buildPaginateUrl(['page_in' => $page_in - 1]) ?>#section_pemasukan" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">&larr; Prev</a>
+                    <?php endif; ?>
+                    <?php if($page_in < $total_pages_in): ?>
+                        <a href="<?= buildPaginateUrl(['page_in' => $page_in + 1]) ?>#section_pemasukan" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">Next &rarr;</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div id="section_pengeluaran" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all scroll-mt-20">
+        <div class="px-6 py-4 border-b border-gray-200 bg-red-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pengeluaran', 'icon_pengeluaran', 'section_pengeluaran')">
+            <h3 class="font-bold text-red-800 flex items-center gap-2 text-base md:text-lg">
+                <svg id="icon_pengeluaran" class="w-5 h-5 md:w-6 md:h-6 transition-transform duration-300 <?= $show_out ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                Pengeluaran Operasional <span class="hidden sm:inline">(<?= $total_data_out ?> Data)</span>
+            </h3>
+        </div>
+        
+        <div id="wrapper_pengeluaran" class="<?= $show_out ? 'block' : 'hidden' ?>">
+            <form action="keuangan.php" method="GET" class="p-4 md:p-5 border-b border-gray-200 bg-white space-y-4">
+                <?= hiddenParamsHtml('out_') ?>
+                <input type="hidden" name="filter_out" value="1">
+                <input type="hidden" name="page_out" value="1">
+                
+                <div class="flex flex-col md:flex-row flex-wrap gap-4 items-end">
+                    <div class="w-full md:w-auto">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
+                        <select name="out_tipe" id="out_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white" onchange="toggleDateOut()">
+                            <option value="bulan" <?= $out_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
+                            <option value="rentang" <?= $out_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
+                        </select>
+                    </div>
+                    <div id="out_wrap_bulan" class="w-full md:w-auto <?= $out_tipe == 'bulan' ? 'block' : 'hidden' ?>">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
+                        <input type="month" name="out_bulan" value="<?= $out_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                    </div>
+                    <div id="out_wrap_rentang" class="w-full md:w-auto <?= $out_tipe == 'rentang' ? 'flex flex-row' : 'hidden' ?> gap-2">
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="out_start" value="<?= $out_start ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
+                        <div class="flex-1 w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="out_end" value="<?= $out_end ?>" class="w-full border px-3 py-2 rounded text-sm bg-white"></div>
+                    </div>
+                    <div class="w-full md:w-auto flex-1 min-w-[200px]">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
+                        <select name="out_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                            <option value="">Semua Lokasi</option>
+                            <?php foreach($list_kost_db as $k): ?>
+                                <option value="<?= $k['id_kost'] ?>" <?= $out_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="w-1/2 md:w-auto pr-2 md:pr-0">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kategori Biaya</label>
+                        <select name="out_kat" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
+                            <option value="">Semua Kategori</option>
+                            <?php foreach($list_kategori_db as $kat): ?>
+                                <option value="<?= htmlspecialchars($kat) ?>" <?= $out_kat == $kat ? 'selected' : '' ?>><?= htmlspecialchars($kat) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="w-1/2 md:w-auto pl-2 md:pl-0">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
+                        <select name="out_limit" class="w-full border border-gray-300 px-3 py-2 rounded text-sm bg-white">
+                            <option value="10" <?= $out_limit == '10' ? 'selected' : '' ?>>10</option>
+                            <option value="25" <?= $out_limit == '25' ? 'selected' : '' ?>>25</option>
+                            <option value="50" <?= $out_limit == '50' ? 'selected' : '' ?>>50</option>
+                            <option value="Semua" <?= $out_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full md:w-auto mt-2 md:mt-0 bg-red-600 text-white px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-red-700">Terapkan Filter</button>
+                </div>
+            </form>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase">Tgl Pengeluaran</th>
+                            <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase">Lokasi Properti</th>
+                            <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase">Kategori & Rincian</th>
+                            <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase text-right">Nominal Keluar (Rp)</th>
+                            <th class="py-3 px-6 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <?php foreach ($data_pengeluaran as $out) : ?>
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="py-3 px-6 text-sm font-semibold text-gray-700"><?= date('d M Y', strtotime($out['tanggalpengeluaran'])) ?></td>
+                            <td class="py-3 px-6 text-sm font-bold text-gray-800"><?= htmlspecialchars($out['nama_kost'] ?? 'Semua / Biaya Pusat') ?></td>
+                            <td class="py-3 px-6 text-sm">
+                                <span class="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs font-bold mr-2"><?= htmlspecialchars($out['kategoripengeluaran']) ?></span>
+                                <span class="text-gray-600"><?= htmlspecialchars($out['namapengeluaran']) ?></span>
+                            </td>
+                            <td class="py-3 px-6 text-sm font-black text-red-600 text-right">- <?= number_format($out['jumlahpengeluaran'], 0, ',', '.') ?></td>
+                            <td class="py-3 px-6 flex justify-center gap-2">
+                                <a href="form_pengeluaran.php?edit=<?= $out['id_pengeluaran'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-3 py-1.5 rounded text-xs font-semibold">Edit</a>
+                                <a href="keuangan.php?hapus=<?= $out['id_pengeluaran'] ?>" onclick="return confirm('Hapus catatan pengeluaran ini?');" class="border border-red-500 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded text-xs font-semibold">Hapus</a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php if(empty($data_pengeluaran)): ?>
+                        <tr><td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada data pengeluaran pada filter ini.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <?php if($total_pages_out > 1): ?>
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
+                <span class="text-gray-600 font-medium">Halaman <?= $page_out ?> dari <?= $total_pages_out ?></span>
+                <div class="flex gap-2">
+                    <?php if($page_out > 1): ?>
+                        <a href="<?= buildPaginateUrl(['page_out' => $page_out - 1]) ?>#section_pengeluaran" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">&larr; Prev</a>
+                    <?php endif; ?>
+                    <?php if($page_out < $total_pages_out): ?>
+                        <a href="<?= buildPaginateUrl(['page_out' => $page_out + 1]) ?>#section_pengeluaran" class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-100 font-semibold text-gray-700">Next &rarr;</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div> <div id="modal_bayar" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <div class="bg-green-600 px-6 py-4 flex justify-between items-center">
             <h3 class="font-bold text-white text-lg">Update Pembayaran / Cicilan</h3>
@@ -558,11 +546,11 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Tanggal Transfer/Bayar <span class="text-red-500">*</span></label>
-                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none">
+                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none bg-white">
             </div>
             <div class="mb-6">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nominal Pembayaran (Rp) <span class="text-red-500">*</span></label>
-                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none font-bold text-lg text-gray-800">
+                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
             </div>
             <div class="flex gap-3 justify-end mt-2">
                 <button type="button" onclick="tutupModalBayar()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors">Batal</button>
@@ -573,41 +561,43 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
 </div>
 
 <script>
-// Logika Tampil Sembunyi Input Tanggal (Ringkasan)
 function toggleDateSum() {
     const tipe = document.getElementById('sum_tipe').value;
-    document.getElementById('sum_wrap_bulan').className = (tipe === 'bulan') ? 'block' : 'hidden';
-    document.getElementById('sum_wrap_rentang').className = (tipe === 'rentang') ? 'flex gap-2' : 'hidden';
+    document.getElementById('sum_wrap_bulan').className = (tipe === 'bulan') ? 'w-full md:w-auto block' : 'hidden';
+    document.getElementById('sum_wrap_rentang').className = (tipe === 'rentang') ? 'w-full md:w-auto flex flex-col sm:flex-row gap-3 sm:gap-2' : 'hidden';
 }
 
-// Logika Tampil Sembunyi Input Tanggal (Pemasukan)
 function toggleDateIn() {
     const tipe = document.getElementById('in_tipe').value;
-    document.getElementById('in_wrap_bulan').className = (tipe === 'bulan') ? 'block' : 'hidden';
-    document.getElementById('in_wrap_rentang').className = (tipe === 'rentang') ? 'flex gap-2' : 'hidden';
+    document.getElementById('in_wrap_bulan').className = (tipe === 'bulan') ? 'w-full md:w-auto block' : 'hidden';
+    document.getElementById('in_wrap_rentang').className = (tipe === 'rentang') ? 'w-full md:w-auto flex flex-row gap-2' : 'hidden';
 }
 
-// Logika Tampil Sembunyi Input Tanggal (Pengeluaran)
 function toggleDateOut() {
     const tipe = document.getElementById('out_tipe').value;
-    document.getElementById('out_wrap_bulan').className = (tipe === 'bulan') ? 'block' : 'hidden';
-    document.getElementById('out_wrap_rentang').className = (tipe === 'rentang') ? 'flex gap-2' : 'hidden';
+    document.getElementById('out_wrap_bulan').className = (tipe === 'bulan') ? 'w-full md:w-auto block' : 'hidden';
+    document.getElementById('out_wrap_rentang').className = (tipe === 'rentang') ? 'w-full md:w-auto flex flex-row gap-2' : 'hidden';
 }
 
-// Logika Accordion
-function toggleSection(wrapperId, iconId) {
+function toggleSection(wrapperId, iconId, sectionId) {
     const wrapper = document.getElementById(wrapperId);
     const icon = document.getElementById(iconId);
+    const section = document.getElementById(sectionId);
+    
     if (wrapper.classList.contains('hidden')) {
         wrapper.classList.remove('hidden');
         icon.classList.remove('-rotate-90');
+        
+        setTimeout(() => {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+        
     } else {
         wrapper.classList.add('hidden');
         icon.classList.add('-rotate-90');
     }
 }
 
-// Format Rupiah untuk JS
 const formatRupiahJs = (angka) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
 }
