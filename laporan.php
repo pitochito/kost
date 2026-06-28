@@ -188,7 +188,7 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
         <div class="flex border-b-4 border-gray-900 pb-4 md:pb-6 mb-6 md:mb-8 items-center gap-3 md:gap-6">
             <img src="logo.jpg" alt="Logo" class="h-16 w-16 md:h-24 md:w-24 object-contain rounded bg-black p-1 shrink-0">
             <div class="flex-1">
-                <h1 class="text-xl md:text-3xl font-black text-gray-900 tracking-tight uppercase">KOST SUN MGT</h1>
+                <h1 class="text-xl md:text-3xl font-black text-gray-900 tracking-tight uppercase">KOST SUN</h1>
                 <p class="text-[10px] md:text-sm font-semibold text-gray-600 mt-0.5 md:mt-1 uppercase tracking-widest">LAPORAN BULANAN</p>
                 <p class="text-[9px] md:text-xs text-gray-500 mt-1">Dicetak: <?= date('d/m/Y H:i') ?></p>
             </div>
