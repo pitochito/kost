@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kost Sun | Secure Terminal</title>
     <!-- Tambahkan baris ini -->
-    <link rel="icon" type="image/jpeg" href="logo.jpg">
+    <link rel="icon" type="image/jpeg" href="logo.jpg?v=<?= time(); ?>">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Highlight selection untuk efek terminal */
