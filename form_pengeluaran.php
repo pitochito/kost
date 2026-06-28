@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <option value="Angsuran" <?= $edit_data['kategoripengeluaran'] == 'Angsuran' ? 'selected' : '' ?>>Angsuran / Cicilan</option>
                         <option value="Belanja Bahan" <?= $edit_data['kategoripengeluaran'] == 'Belanja Bahan' ? 'selected' : '' ?>>Belanja Bahan (Galon, Gas, dll)</option>
                         <option value="Perbaikan" <?= $edit_data['kategoripengeluaran'] == 'Perbaikan' ? 'selected' : '' ?>>Perbaikan / Maintenance</option>
-                        <option value="Gaji" <?= $edit_data['kategoripengeluaran'] == 'Gaji' ? 'selected' : '' ?>>Gaji Karyawan</option>
+                        <option value="Gaji" <?= $edit_data['kategoripengeluaran'] == 'Gaji' ? 'selected' : '' ?>>Gaji / Prive</option>
                         <option value="Kebersihan/Keamanan" <?= $edit_data['kategoripengeluaran'] == 'Kebersihan/Keamanan' ? 'selected' : '' ?>>Jasa Kebersihan / Keamanan</option>
                         <option value="Lainnya" <?= $edit_data['kategoripengeluaran'] == 'Lainnya' ? 'selected' : '' ?>>Lain-lain</option>
                     </select>
