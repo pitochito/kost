@@ -226,41 +226,42 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
         <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold"><?= $pesan_sukses ?></div>
     <?php endif; ?>
 
-    <div class="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-200 mb-6 w-full">
+    <div class="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
         <div class="flex justify-between items-center mb-4 border-b pb-2">
             <h3 class="font-bold text-gray-800 text-lg">Ringkasan Arus Kas</h3>
         </div>
         
-        <form action="keuangan.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <?= hiddenParamsHtml('sum_') ?>
-            <input type="hidden" name="filter_sum" value="1">
-            
-            <div class="w-full md:w-auto min-w-0">
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Metode Waktu</label>
-                <!-- Perbaikan ekstrim untuk mobile layout: block, w-full, ring-inset, text-base -->
-                <select name="sum_tipe" id="sum_tipe" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-white text-base sm:text-sm shadow-sm" onchange="toggleDateSum()">
-                    <option value="bulan" <?= $sum_tipe == 'bulan' ? 'selected' : '' ?>>Per Bulan</option>
-                    <option value="rentang" <?= $sum_tipe == 'rentang' ? 'selected' : '' ?>>Rentang Tanggal</option>
-                </select>
-            </div>
-            
-            <div id="sum_wrap_bulan" class="w-full md:w-auto min-w-0 <?= $sum_tipe == 'bulan' ? 'block' : 'hidden' ?>">
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pilih Bulan</label>
-                <input type="month" name="sum_bulan" value="<?= $sum_bulan ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-white text-base sm:text-sm shadow-sm">
-            </div>
-            
-            <div id="sum_wrap_rentang" class="w-full md:w-auto min-w-0 <?= $sum_tipe == 'rentang' ? 'flex flex-col sm:flex-row' : 'hidden' ?> gap-3 sm:gap-2">
-                <div class="w-full sm:flex-1 min-w-0">
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dari</label>
-                    <input type="date" name="sum_start" value="<?= $sum_start ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-white text-base sm:text-sm shadow-sm">
+        <form action="keuangan.php" method="GET" class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+            <div class="flex flex-col md:flex-row gap-4 md:items-end">
+                <?= hiddenParamsHtml('sum_') ?>
+                <input type="hidden" name="filter_sum" value="1">
+                
+                <div class="w-full md:w-auto">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Metode Waktu</label>
+                    <select name="sum_tipe" id="sum_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white text-sm" onchange="toggleDateSum()">
+                        <option value="bulan" <?= $sum_tipe == 'bulan' ? 'selected' : '' ?>>Per Bulan</option>
+                        <option value="rentang" <?= $sum_tipe == 'rentang' ? 'selected' : '' ?>>Rentang Tanggal</option>
+                    </select>
                 </div>
-                <div class="w-full sm:flex-1 min-w-0">
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai</label>
-                    <input type="date" name="sum_end" value="<?= $sum_end ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-white text-base sm:text-sm shadow-sm">
+                
+                <div id="sum_wrap_bulan" class="w-full md:w-auto <?= $sum_tipe == 'bulan' ? '' : 'hidden' ?>">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pilih Bulan</label>
+                    <input type="month" name="sum_bulan" value="<?= $sum_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                 </div>
+                
+                <div id="sum_wrap_rentang" class="w-full md:w-auto grid grid-cols-2 md:flex md:flex-row gap-2 <?= $sum_tipe == 'rentang' ? '' : 'hidden' ?>">
+                    <div class="w-full">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dari</label>
+                        <input type="date" name="sum_start" value="<?= $sum_start ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                    </div>
+                    <div class="w-full">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai</label>
+                        <input type="date" name="sum_end" value="<?= $sum_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                    </div>
+                </div>
+                
+                <button type="submit" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors shadow-sm whitespace-nowrap mt-2 md:mt-0">Lihat Ringkasan</button>
             </div>
-            
-            <button type="submit" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold transition-colors shadow-sm whitespace-nowrap">Lihat Ringkasan</button>
         </form>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -281,7 +282,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
         </div>
     </div>
 
-    <div id="section_pemasukan" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all scroll-mt-20 w-full">
+    <div id="section_pemasukan" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all scroll-mt-20">
         <div class="px-6 py-4 border-b border-gray-200 bg-green-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pemasukan', 'icon_pemasukan', 'section_pemasukan')">
             <h3 class="font-bold text-green-800 flex items-center gap-2 text-base md:text-lg">
                 <svg id="icon_pemasukan" class="w-5 h-5 md:w-6 md:h-6 transition-transform duration-300 <?= $show_in ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
@@ -295,53 +296,61 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
         </div>
         
         <div id="wrapper_pemasukan" class="<?= $show_in ? 'block' : 'hidden' ?>">
-            <form action="keuangan.php" method="GET" class="p-4 md:p-5 border-b border-gray-200 bg-white space-y-4">
-                <?= hiddenParamsHtml('in_') ?>
-                <input type="hidden" name="filter_in" value="1">
-                <input type="hidden" name="page_in" value="1"> 
-                <div class="flex flex-col md:flex-row flex-wrap gap-4 items-end">
-                    <div class="w-full md:w-auto min-w-0">
+            <form action="keuangan.php" method="GET" class="p-4 md:p-5 border-b border-gray-200 bg-white">
+                <div class="flex flex-col md:flex-row flex-wrap gap-4 md:items-end">
+                    <?= hiddenParamsHtml('in_') ?>
+                    <input type="hidden" name="filter_in" value="1">
+                    <input type="hidden" name="page_in" value="1"> 
+                    
+                    <div class="w-full md:w-auto">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
-                        <select name="in_tipe" id="in_tipe" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm" onchange="toggleDateIn()">
+                        <select name="in_tipe" id="in_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white" onchange="toggleDateIn()">
                             <option value="bulan" <?= $in_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
                             <option value="rentang" <?= $in_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
                         </select>
                     </div>
-                    <div id="in_wrap_bulan" class="w-full md:w-auto min-w-0 <?= $in_tipe == 'bulan' ? 'block' : 'hidden' ?>">
+                    
+                    <div id="in_wrap_bulan" class="w-full md:w-auto <?= $in_tipe == 'bulan' ? '' : 'hidden' ?>">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
-                        <input type="month" name="in_bulan" value="<?= $in_bulan ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm">
+                        <input type="month" name="in_bulan" value="<?= $in_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
                     </div>
-                    <div id="in_wrap_rentang" class="w-full md:w-auto min-w-0 <?= $in_tipe == 'rentang' ? 'flex flex-row' : 'hidden' ?> gap-2">
-                        <div class="flex-1 w-full min-w-0"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="in_start" value="<?= $in_start ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm"></div>
-                        <div class="flex-1 w-full min-w-0"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="in_end" value="<?= $in_end ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm"></div>
+                    
+                    <div id="in_wrap_rentang" class="w-full md:w-auto grid grid-cols-2 md:flex md:flex-row gap-2 <?= $in_tipe == 'rentang' ? '' : 'hidden' ?>">
+                        <div class="w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="in_start" value="<?= $in_start ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white"></div>
+                        <div class="w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="in_end" value="<?= $in_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white"></div>
                     </div>
-                    <div class="w-full md:w-auto flex-1 min-w-0">
+                    
+                    <div class="w-full md:w-auto flex-1 md:min-w-[200px]">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-                        <select name="in_kost" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm">
+                        <select name="in_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
                             <option value="">Semua Lokasi</option>
                             <?php foreach($list_kost_db as $k): ?>
                                 <option value="<?= $k['id_kost'] ?>" <?= $in_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="w-1/2 md:w-auto pr-2 md:pr-0 min-w-0">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-                        <select name="in_status" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm">
-                            <option value="">Semua Status</option>
-                            <option value="Lunas" <?= $in_status == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
-                            <option value="Belum Lunas" <?= $in_status == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
-                        </select>
+                    
+                    <div class="w-full grid grid-cols-2 gap-4 md:flex md:w-auto md:gap-4">
+                        <div class="w-full">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                            <select name="in_status" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                                <option value="">Semua Status</option>
+                                <option value="Lunas" <?= $in_status == 'Lunas' ? 'selected' : '' ?>>Lunas</option>
+                                <option value="Belum Lunas" <?= $in_status == 'Belum Lunas' ? 'selected' : '' ?>>Belum Lunas</option>
+                            </select>
+                        </div>
+                        <div class="w-full">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
+                            <select name="in_limit" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                                <option value="10" <?= $in_limit == '10' ? 'selected' : '' ?>>10</option>
+                                <option value="25" <?= $in_limit == '25' ? 'selected' : '' ?>>25</option>
+                                <option value="50" <?= $in_limit == '50' ? 'selected' : '' ?>>50</option>
+                                <option value="Semua" <?= $in_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="w-1/2 md:w-auto pl-2 md:pl-0 min-w-0">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
-                        <select name="in_limit" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm">
-                            <option value="10" <?= $in_limit == '10' ? 'selected' : '' ?>>10</option>
-                            <option value="25" <?= $in_limit == '25' ? 'selected' : '' ?>>25</option>
-                            <option value="50" <?= $in_limit == '50' ? 'selected' : '' ?>>50</option>
-                            <option value="Semua" <?= $in_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full md:w-auto mt-2 md:mt-0 bg-green-600 text-white px-6 py-2 rounded-md font-bold text-sm shadow-sm hover:bg-green-700 whitespace-nowrap">Filter Data</button>
+                    
+                    <button type="submit" class="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-green-700 whitespace-nowrap mt-2 md:mt-0">Filter Data</button>
                 </div>
             </form>
 
@@ -418,7 +427,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
         </div>
     </div>
 
-    <div id="section_pengeluaran" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all scroll-mt-20 w-full">
+    <div id="section_pengeluaran" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 transition-all scroll-mt-20">
         <div class="px-6 py-4 border-b border-gray-200 bg-red-50 flex justify-between items-center cursor-pointer select-none" onclick="toggleSection('wrapper_pengeluaran', 'icon_pengeluaran', 'section_pengeluaran')">
             <h3 class="font-bold text-red-800 flex items-center gap-2 text-base md:text-lg">
                 <svg id="icon_pengeluaran" class="w-5 h-5 md:w-6 md:h-6 transition-transform duration-300 <?= $show_out ? 'rotate-0' : '-rotate-90' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
@@ -427,55 +436,62 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
         </div>
         
         <div id="wrapper_pengeluaran" class="<?= $show_out ? 'block' : 'hidden' ?>">
-            <form action="keuangan.php" method="GET" class="p-4 md:p-5 border-b border-gray-200 bg-white space-y-4">
-                <?= hiddenParamsHtml('out_') ?>
-                <input type="hidden" name="filter_out" value="1">
-                <input type="hidden" name="page_out" value="1">
-                
-                <div class="flex flex-col md:flex-row flex-wrap gap-4 items-end">
-                    <div class="w-full md:w-auto min-w-0">
+            <form action="keuangan.php" method="GET" class="p-4 md:p-5 border-b border-gray-200 bg-white">
+                <div class="flex flex-col md:flex-row flex-wrap gap-4 md:items-end">
+                    <?= hiddenParamsHtml('out_') ?>
+                    <input type="hidden" name="filter_out" value="1">
+                    <input type="hidden" name="page_out" value="1">
+                    
+                    <div class="w-full md:w-auto">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Metode</label>
-                        <select name="out_tipe" id="out_tipe" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm" onchange="toggleDateOut()">
+                        <select name="out_tipe" id="out_tipe" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white" onchange="toggleDateOut()">
                             <option value="bulan" <?= $out_tipe == 'bulan' ? 'selected' : '' ?>>Bulan</option>
                             <option value="rentang" <?= $out_tipe == 'rentang' ? 'selected' : '' ?>>Rentang</option>
                         </select>
                     </div>
-                    <div id="out_wrap_bulan" class="w-full md:w-auto min-w-0 <?= $out_tipe == 'bulan' ? 'block' : 'hidden' ?>">
+                    
+                    <div id="out_wrap_bulan" class="w-full md:w-auto <?= $out_tipe == 'bulan' ? '' : 'hidden' ?>">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
-                        <input type="month" name="out_bulan" value="<?= $out_bulan ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm">
+                        <input type="month" name="out_bulan" value="<?= $out_bulan ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
                     </div>
-                    <div id="out_wrap_rentang" class="w-full md:w-auto min-w-0 <?= $out_tipe == 'rentang' ? 'flex flex-row' : 'hidden' ?> gap-2">
-                        <div class="flex-1 w-full min-w-0"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="out_start" value="<?= $out_start ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm"></div>
-                        <div class="flex-1 w-full min-w-0"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="out_end" value="<?= $out_end ?>" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm"></div>
+                    
+                    <div id="out_wrap_rentang" class="w-full md:w-auto grid grid-cols-2 md:flex md:flex-row gap-2 <?= $out_tipe == 'rentang' ? '' : 'hidden' ?>">
+                        <div class="w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Dari</label><input type="date" name="out_start" value="<?= $out_start ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white"></div>
+                        <div class="w-full"><label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sampai</label><input type="date" name="out_end" value="<?= $out_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white"></div>
                     </div>
-                    <div class="w-full md:w-auto flex-1 min-w-0">
+                    
+                    <div class="w-full md:w-auto flex-1 md:min-w-[200px]">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-                        <select name="out_kost" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm">
+                        <select name="out_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
                             <option value="">Semua Lokasi</option>
                             <?php foreach($list_kost_db as $k): ?>
                                 <option value="<?= $k['id_kost'] ?>" <?= $out_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="w-1/2 md:w-auto pr-2 md:pr-0 min-w-0">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kategori Biaya</label>
-                        <select name="out_kat" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm">
-                            <option value="">Semua Kategori</option>
-                            <?php foreach($list_kategori_db as $kat): ?>
-                                <option value="<?= htmlspecialchars($kat) ?>" <?= $out_kat == $kat ? 'selected' : '' ?>><?= htmlspecialchars($kat) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                    
+                    <div class="w-full grid grid-cols-2 gap-4 md:flex md:w-auto md:gap-4">
+                        <div class="w-full">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kategori Biaya</label>
+                            <select name="out_kat" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                                <option value="">Semua Kategori</option>
+                                <?php foreach($list_kategori_db as $kat): ?>
+                                    <option value="<?= htmlspecialchars($kat) ?>" <?= $out_kat == $kat ? 'selected' : '' ?>><?= htmlspecialchars($kat) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="w-full">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
+                            <select name="out_limit" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-red-500 text-sm bg-white">
+                                <option value="10" <?= $out_limit == '10' ? 'selected' : '' ?>>10</option>
+                                <option value="25" <?= $out_limit == '25' ? 'selected' : '' ?>>25</option>
+                                <option value="50" <?= $out_limit == '50' ? 'selected' : '' ?>>50</option>
+                                <option value="Semua" <?= $out_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="w-1/2 md:w-auto pl-2 md:pl-0 min-w-0">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil</label>
-                        <select name="out_limit" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-red-500 bg-white text-base sm:text-sm shadow-sm">
-                            <option value="10" <?= $out_limit == '10' ? 'selected' : '' ?>>10</option>
-                            <option value="25" <?= $out_limit == '25' ? 'selected' : '' ?>>25</option>
-                            <option value="50" <?= $out_limit == '50' ? 'selected' : '' ?>>50</option>
-                            <option value="Semua" <?= $out_limit == 'Semua' ? 'selected' : '' ?>>Semua</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full md:w-auto mt-2 md:mt-0 bg-red-600 text-white px-6 py-2 rounded-md font-bold text-sm shadow-sm hover:bg-red-700 whitespace-nowrap">Terapkan Filter</button>
+                    
+                    <button type="submit" class="w-full md:w-auto bg-red-600 text-white px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-red-700 whitespace-nowrap mt-2 md:mt-0">Terapkan Filter</button>
                 </div>
             </form>
 
@@ -549,15 +565,15 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Tanggal Transfer/Bayar <span class="text-red-500">*</span></label>
-                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white text-base sm:text-sm shadow-sm">
+                <input type="date" name="tanggal_bayar_baru" value="<?= date('Y-m-d') ?>" required class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-sm">
             </div>
             <div class="mb-6">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nominal Pembayaran (Rp) <span class="text-red-500">*</span></label>
-                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="block w-full m-0 border-0 py-2 px-3 rounded-md ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-green-500 bg-white font-bold text-lg text-gray-800 shadow-sm">
+                <input type="number" name="nominal_bayar_baru" id="input_nominal_bayar" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-green-500 focus:outline-none bg-white font-bold text-lg text-gray-800 shadow-sm">
             </div>
             <div class="flex gap-3 justify-end mt-2">
-                <button type="button" onclick="tutupModalBayar()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-md font-bold hover:bg-gray-300 transition-colors">Batal</button>
-                <button type="submit" name="proses_bayar" class="px-5 py-2.5 bg-green-600 text-white rounded-md font-bold hover:bg-green-700 transition-colors shadow-md">Simpan Pembayaran</button>
+                <button type="button" onclick="tutupModalBayar()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors">Batal</button>
+                <button type="submit" name="proses_bayar" class="px-5 py-2.5 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition-colors shadow-md">Simpan Pembayaran</button>
             </div>
         </form>
     </div>
@@ -566,20 +582,35 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
 <script>
 function toggleDateSum() {
     const tipe = document.getElementById('sum_tipe').value;
-    document.getElementById('sum_wrap_bulan').className = (tipe === 'bulan') ? 'w-full md:w-auto min-w-0 block' : 'hidden';
-    document.getElementById('sum_wrap_rentang').className = (tipe === 'rentang') ? 'w-full md:w-auto min-w-0 flex flex-col sm:flex-row gap-3 sm:gap-2' : 'hidden';
+    if(tipe === 'bulan') {
+        document.getElementById('sum_wrap_bulan').classList.remove('hidden');
+        document.getElementById('sum_wrap_rentang').classList.add('hidden');
+    } else {
+        document.getElementById('sum_wrap_bulan').classList.add('hidden');
+        document.getElementById('sum_wrap_rentang').classList.remove('hidden');
+    }
 }
 
 function toggleDateIn() {
     const tipe = document.getElementById('in_tipe').value;
-    document.getElementById('in_wrap_bulan').className = (tipe === 'bulan') ? 'w-full md:w-auto min-w-0 block' : 'hidden';
-    document.getElementById('in_wrap_rentang').className = (tipe === 'rentang') ? 'w-full md:w-auto min-w-0 flex flex-row gap-2' : 'hidden';
+    if(tipe === 'bulan') {
+        document.getElementById('in_wrap_bulan').classList.remove('hidden');
+        document.getElementById('in_wrap_rentang').classList.add('hidden');
+    } else {
+        document.getElementById('in_wrap_bulan').classList.add('hidden');
+        document.getElementById('in_wrap_rentang').classList.remove('hidden');
+    }
 }
 
 function toggleDateOut() {
     const tipe = document.getElementById('out_tipe').value;
-    document.getElementById('out_wrap_bulan').className = (tipe === 'bulan') ? 'w-full md:w-auto min-w-0 block' : 'hidden';
-    document.getElementById('out_wrap_rentang').className = (tipe === 'rentang') ? 'w-full md:w-auto min-w-0 flex flex-row gap-2' : 'hidden';
+    if(tipe === 'bulan') {
+        document.getElementById('out_wrap_bulan').classList.remove('hidden');
+        document.getElementById('out_wrap_rentang').classList.add('hidden');
+    } else {
+        document.getElementById('out_wrap_bulan').classList.add('hidden');
+        document.getElementById('out_wrap_rentang').classList.remove('hidden');
+    }
 }
 
 function toggleSection(wrapperId, iconId, sectionId) {
