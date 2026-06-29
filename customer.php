@@ -121,164 +121,170 @@ $stmt->execute($params);
 $data_customer = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-    <div>
-        <h2 class="text-2xl font-bold text-gray-800">Data Customer</h2>
-        <p class="text-sm text-gray-500 mt-1">Kelola data riwayat penyewa dan profil customer kost Anda.</p>
-    </div>
-    
-    <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-        <a href="cetak_lampiran_customer.php" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded transition-colors shadow-sm text-center flex items-center justify-center gap-2 whitespace-nowrap">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            Cetak Lampiran
-        </a>
-        <a href="form_customer.php" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded transition-colors shadow-sm whitespace-nowrap text-center flex items-center justify-center">
-            + Pendaftaran Baru
-        </a>
-    </div>
-</div>
+<!-- WRAPPER UTAMA DENGAN PADDING BOTTOM 32 UNTUK MOBILE -->
+<div class="pb-32">
 
-<?php if ($pesan_sukses): ?>
-    <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold"><?= $pesan_sukses ?></div>
-<?php endif; ?>
-
-<div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
-    <form action="customer.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end flex-wrap">
-        
-        <input type="hidden" name="page" value="1"> 
-        <div class="flex-1 min-w-[200px]">
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pencarian Universal</label>
-            <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="Cari Nama, NIK, No. HP, Alamat..." 
-                   class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500">
+    <div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Data Customer</h2>
+            <p class="text-sm text-gray-500 mt-1">Kelola data riwayat penyewa dan profil customer kost Anda.</p>
         </div>
         
-        <div class="w-full md:w-40">
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status Sewa</label>
-            <select name="status" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
-                <option value="">Semua Status</option>
-                <option value="Aktif" <?= $status == 'Aktif' ? 'selected' : '' ?>>Aktif</option>
-                <option value="Tidak Aktif" <?= $status == 'Tidak Aktif' ? 'selected' : '' ?>>Tidak Aktif</option>
-            </select>
-        </div>
-
-        <div class="w-full md:w-48">
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
-            <select name="filter_kost" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
-                <option value="">Semua Lokasi</option>
-                <?php foreach($list_kost_db as $k): ?>
-                    <option value="<?= $k['id_kost'] ?>" <?= $filter_kost == $k['id_kost'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($k['nama_kost']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        
-        <div class="w-full md:w-32">
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil Baris</label>
-            <select name="limit_filter" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
-                <option value="10" <?= $limit_filter == '10' ? 'selected' : '' ?>>10</option>
-                <option value="15" <?= $limit_filter == '15' ? 'selected' : '' ?>>15</option>
-                <option value="20" <?= $limit_filter == '20' ? 'selected' : '' ?>>20</option>
-                <option value="25" <?= $limit_filter == '25' ? 'selected' : '' ?>>25</option>
-                <option value="50" <?= $limit_filter == '50' ? 'selected' : '' ?>>50</option>
-                <option value="Semua" <?= $limit_filter == 'Semua' ? 'selected' : '' ?>>Semua</option>
-            </select>
-        </div>
-
-        <div class="flex gap-2 w-full md:w-auto">
-            <button type="submit" class="flex-1 md:flex-none bg-black hover:bg-gray-800 text-white font-bold py-2 px-6 rounded transition-colors shadow-md">
-                Terapkan
-            </button>
-            <?php if(!empty($search) || !empty($status) || !empty($filter_kost) || $limit_filter != '10'): ?>
-                <a href="customer.php" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded text-center transition-colors border border-gray-300">Reset</a>
-            <?php endif; ?>
-        </div>
-    </form>
-</div>
-
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <h3 class="font-bold text-gray-700 text-sm">Menampilkan <?= count($data_customer) ?> dari total <?= $total_data ?> customer</h3>
-    </div>
-    
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse min-w-[1000px]">
-            <thead class="bg-white border-b border-gray-200">
-                <tr>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Profil & Identitas</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Kontak Personal</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Alamat Domisili</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Status & Lokasi</th>
-                    <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                <?php foreach ($data_customer as $cust) : ?>
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="py-3 px-4">
-                        <p class="font-bold text-gray-800 text-sm"><?= htmlspecialchars($cust['namacustomer']) ?></p>
-                        <p class="text-[11px] text-gray-500 font-mono mt-0.5">NIK: <?= htmlspecialchars($cust['nikcustomer']) ?></p>
-                    </td>
-                    <td class="py-3 px-4">
-                        <p class="font-semibold text-gray-700 text-sm"><?= htmlspecialchars($cust['nohpcustomer']) ?: '-' ?></p>
-                        <p class="text-[11px] text-gray-500 mt-0.5">Darurat: <span class="font-semibold"><?= htmlspecialchars($cust['namakontakdarurat']) ?></span> (<?= htmlspecialchars($cust['kontakdarurat']) ?>)</p>
-                    </td>
-                    <td class="py-3 px-4">
-                        <p class="text-sm font-semibold text-gray-700"><?= htmlspecialchars($cust['kotaasalcustomer']) ?: '-' ?></p>
-                        <p class="text-[11px] text-gray-500 mt-0.5 truncate max-w-[200px]" title="<?= htmlspecialchars($cust['alamatcustomer']) ?>">
-                            <?= htmlspecialchars($cust['alamatcustomer']) ?>
-                        </p>
-                    </td>
-                    <td class="py-3 px-4">
-                        <?php if (strtolower($cust['statuscustomer']) == 'aktif'): ?>
-                            <span class="inline-block bg-green-100 text-green-800 border border-green-200 px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1">Aktif</span>
-                            <p class="text-[11px] font-semibold text-gray-600">
-                                <?= htmlspecialchars($cust['nama_kost']) ?> - Kmr <?= htmlspecialchars($cust['nomor_kamar']) ?>
-                            </p>
-                        <?php else: ?>
-                            <span class="inline-block bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase">Tidak Aktif</span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="py-3 px-4">
-                        <div class="flex flex-wrap justify-center gap-1.5">
-                            <a href="profil_customer.php?id=<?= $cust['id_customer'] ?>" class="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Profil</a>
-
-                            <?php if (strtolower($cust['statuscustomer']) == 'aktif'): ?>
-                                <a href="perpanjang.php?id=<?= $cust['id_customer'] ?>" class="bg-black text-yellow-500 hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Perpanjang</a>
-                            <?php endif; ?>
-                            
-                            <a href="form_customer.php?edit=<?= $cust['id_customer'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-2 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
-                            
-                            <a href="customer.php?hapus=<?= $cust['id_customer'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus customer ini? Semua foto terkait juga akan ikut terhapus.');" class="border border-red-500 text-red-500 hover:bg-red-50 px-2 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
-                        </div>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                
-                <?php if(empty($data_customer)): ?>
-                <tr>
-                    <td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada data riwayat customer yang sesuai dengan filter/pencarian Anda.</td>
-                </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-    
-    <?php if($total_pages > 1): ?>
-    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
-        <span class="text-gray-600 font-medium">Halaman <?= $page ?> dari <?= $total_pages ?></span>
-        <div class="flex gap-2">
-            <?php if($page > 1): ?>
-                <a href="<?= buildPaginateUrl(['page' => $page - 1]) ?>" class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-100 font-bold text-gray-700 shadow-sm">&larr; Sebelumnya</a>
-            <?php endif; ?>
-            
-            <?php if($page < $total_pages): ?>
-                <a href="<?= buildPaginateUrl(['page' => $page + 1]) ?>" class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-100 font-bold text-gray-700 shadow-sm">Selanjutnya &rarr;</a>
-            <?php endif; ?>
+        <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <a href="cetak_lampiran_customer.php" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded transition-colors shadow-sm text-center flex items-center justify-center gap-2 whitespace-nowrap">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Cetak Lampiran
+            </a>
+            <a href="form_customer.php" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded transition-colors shadow-sm whitespace-nowrap text-center flex items-center justify-center">
+                + Pendaftaran Baru
+            </a>
         </div>
     </div>
+
+    <?php if ($pesan_sukses): ?>
+        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold"><?= $pesan_sukses ?></div>
     <?php endif; ?>
-    
+
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <form action="customer.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end flex-wrap">
+            
+            <input type="hidden" name="page" value="1"> 
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pencarian Universal</label>
+                <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="Cari Nama, NIK, No. HP, Alamat..." 
+                       class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            </div>
+            
+            <div class="w-full md:w-40">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status Sewa</label>
+                <select name="status" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
+                    <option value="">Semua Status</option>
+                    <option value="Aktif" <?= $status == 'Aktif' ? 'selected' : '' ?>>Aktif</option>
+                    <option value="Tidak Aktif" <?= $status == 'Tidak Aktif' ? 'selected' : '' ?>>Tidak Aktif</option>
+                </select>
+            </div>
+
+            <div class="w-full md:w-48">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
+                <select name="filter_kost" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
+                    <option value="">Semua Lokasi</option>
+                    <?php foreach($list_kost_db as $k): ?>
+                        <option value="<?= $k['id_kost'] ?>" <?= $filter_kost == $k['id_kost'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($k['nama_kost']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            
+            <div class="w-full md:w-32">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tampil Baris</label>
+                <select name="limit_filter" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white">
+                    <option value="10" <?= $limit_filter == '10' ? 'selected' : '' ?>>10</option>
+                    <option value="15" <?= $limit_filter == '15' ? 'selected' : '' ?>>15</option>
+                    <option value="20" <?= $limit_filter == '20' ? 'selected' : '' ?>>20</option>
+                    <option value="25" <?= $limit_filter == '25' ? 'selected' : '' ?>>25</option>
+                    <option value="50" <?= $limit_filter == '50' ? 'selected' : '' ?>>50</option>
+                    <option value="Semua" <?= $limit_filter == 'Semua' ? 'selected' : '' ?>>Semua</option>
+                </select>
+            </div>
+
+            <div class="flex gap-2 w-full md:w-auto">
+                <button type="submit" class="flex-1 md:flex-none bg-black hover:bg-gray-800 text-white font-bold py-2 px-6 rounded transition-colors shadow-md">
+                    Terapkan
+                </button>
+                <?php if(!empty($search) || !empty($status) || !empty($filter_kost) || $limit_filter != '10'): ?>
+                    <a href="customer.php" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded text-center transition-colors border border-gray-300">Reset</a>
+                <?php endif; ?>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="font-bold text-gray-700 text-sm">Menampilkan <?= count($data_customer) ?> dari total <?= $total_data ?> customer</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[1000px]">
+                <thead class="bg-white border-b border-gray-200">
+                    <tr>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Profil & Identitas</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Kontak Personal</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Alamat Domisili</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase">Status & Lokasi</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-600 uppercase text-center">Tindakan</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <?php foreach ($data_customer as $cust) : ?>
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="py-3 px-4">
+                            <p class="font-bold text-gray-800 text-sm"><?= htmlspecialchars($cust['namacustomer']) ?></p>
+                            <p class="text-[11px] text-gray-500 font-mono mt-0.5">NIK: <?= htmlspecialchars($cust['nikcustomer']) ?></p>
+                        </td>
+                        <td class="py-3 px-4">
+                            <p class="font-semibold text-gray-700 text-sm"><?= htmlspecialchars($cust['nohpcustomer']) ?: '-' ?></p>
+                            <p class="text-[11px] text-gray-500 mt-0.5">Darurat: <span class="font-semibold"><?= htmlspecialchars($cust['namakontakdarurat']) ?></span> (<?= htmlspecialchars($cust['kontakdarurat']) ?>)</p>
+                        </td>
+                        <td class="py-3 px-4">
+                            <p class="text-sm font-semibold text-gray-700"><?= htmlspecialchars($cust['kotaasalcustomer']) ?: '-' ?></p>
+                            <p class="text-[11px] text-gray-500 mt-0.5 truncate max-w-[200px]" title="<?= htmlspecialchars($cust['alamatcustomer']) ?>">
+                                <?= htmlspecialchars($cust['alamatcustomer']) ?>
+                            </p>
+                        </td>
+                        <td class="py-3 px-4">
+                            <?php if (strtolower($cust['statuscustomer']) == 'aktif'): ?>
+                                <span class="inline-block bg-green-100 text-green-800 border border-green-200 px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1">Aktif</span>
+                                <p class="text-[11px] font-semibold text-gray-600">
+                                    <?= htmlspecialchars($cust['nama_kost']) ?> - Kmr <?= htmlspecialchars($cust['nomor_kamar']) ?>
+                                </p>
+                            <?php else: ?>
+                                <span class="inline-block bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase">Tidak Aktif</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="flex flex-wrap justify-center gap-1.5">
+                                <a href="profil_customer.php?id=<?= $cust['id_customer'] ?>" class="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Profil</a>
+
+                                <?php if (strtolower($cust['statuscustomer']) == 'aktif'): ?>
+                                    <a href="perpanjang.php?id=<?= $cust['id_customer'] ?>" class="bg-black text-yellow-500 hover:bg-gray-800 px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Perpanjang</a>
+                                <?php endif; ?>
+                                
+                                <a href="form_customer.php?edit=<?= $cust['id_customer'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-2 py-1.5 rounded text-xs font-semibold transition-colors">Edit</a>
+                                
+                                <a href="customer.php?hapus=<?= $cust['id_customer'] ?>" onclick="return confirm('Apakah Anda yakin ingin menghapus customer ini? Semua foto terkait juga akan ikut terhapus.');" class="border border-red-500 text-red-500 hover:bg-red-50 px-2 py-1.5 rounded text-xs font-semibold transition-colors">Hapus</a>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    
+                    <?php if(empty($data_customer)): ?>
+                    <tr>
+                        <td colspan="5" class="text-center py-8 text-gray-500 font-medium">Tidak ada data riwayat customer yang sesuai dengan filter/pencarian Anda.</td>
+                    </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        
+        <?php if($total_pages > 1): ?>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-sm">
+            <span class="text-gray-600 font-medium">Halaman <?= $page ?> dari <?= $total_pages ?></span>
+            <div class="flex gap-2">
+                <?php if($page > 1): ?>
+                    <a href="<?= buildPaginateUrl(['page' => $page - 1]) ?>" class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-100 font-bold text-gray-700 shadow-sm">&larr; Sebelumnya</a>
+                <?php endif; ?>
+                
+                <?php if($page < $total_pages): ?>
+                    <a href="<?= buildPaginateUrl(['page' => $page + 1]) ?>" class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-100 font-bold text-gray-700 shadow-sm">Selanjutnya &rarr;</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+    </div>
+
 </div>
+<!-- TUTUP WRAPPER PADDING BOTTOM -->
 
 <?php require 'footer.php'; ?>

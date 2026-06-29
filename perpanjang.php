@@ -45,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $total_tagihan_final = $jumlahtransaksi - $diskon + $charge; 
     $bayar = (int)$_POST['jumlah_bayar'];
     
+    // Tangkap Tanggal Bayar
+    $tanggal_bayar = !empty($_POST['tanggal_bayar']) ? $_POST['tanggal_bayar'] : date('Y-m-d');
+    
     $mulaisewa = $data_sewa['tgl_mulai_baru']; 
     
     $date_obj = new DateTime($mulaisewa);
@@ -62,16 +65,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $koneksi->beginTransaction();
 
-        // INSERT TRANSAKSI (menggunakan kolom id sesuai db_kost.dump)
-        // Memasukkan $jumlahtransaksi (harga dasar) ke kolom jumlahtransaksi
-        $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlah_charge, jumlahtransaksi, jumlah_bayar, status_bayar, tanggal_bayar, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Perpanjangan Sewa', ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?)");
-        $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $jumlahtransaksi, $bayar, $status_bayar, $data_sewa['id_kamar'], $id_customer, $id_user_aktif]);
+        // INSERT TRANSAKSI DENGAN TANGGAL BAYAR MANUAL
+        $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlah_charge, jumlahtransaksi, jumlah_bayar, status_bayar, tanggal_bayar, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Perpanjangan Sewa', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $jumlahtransaksi, $bayar, $status_bayar, $tanggal_bayar, $data_sewa['id_kamar'], $id_customer, $id_user_aktif]);
 
         $koneksi->prepare("UPDATE table_customer SET statuscustomer = 'Aktif' WHERE id_customer = ?")->execute([$id_customer]);
         $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?")->execute([$data_sewa['id_kamar']]);
 
         $koneksi->commit();
-        header("Location: index.php"); 
+        echo "<script>window.location.href='index.php';</script>"; 
         exit;
 
     } catch (Exception $e) {
@@ -81,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<div class="max-w-4xl mx-auto">
+<div class="max-w-4xl mx-auto pb-32">
     <div class="mb-6">
         <a href="index.php" class="text-sm font-semibold text-gray-500 hover:text-black mb-2 inline-block">&larr; Batal & Kembali</a>
     </div>
@@ -148,9 +150,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <div class="bg-green-50 border border-green-200 p-4 rounded-lg mt-4">
-                <label class="block text-sm font-bold text-green-800 mb-1">Nominal Telah Dibayar (Rp)</label>
-                <input type="number" name="jumlah_bayar" id="jumlah_bayar" value="0" min="0" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg text-gray-800">
-                <p class="text-xs text-green-700 mt-1">*Sistem otomatis menetapkan status <strong>Lunas / Belum Lunas</strong> sesuai nominal bayar vs total tagihan.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-green-800 mb-1">Tgl Pembayaran *</label>
+                        <input type="date" name="tanggal_bayar" id="tanggal_bayar" value="<?= date('Y-m-d') ?>" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-green-800 mb-1">Nominal Telah Dibayar (Rp) *</label>
+                        <input type="number" name="jumlah_bayar" id="jumlah_bayar" value="0" min="0" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg text-gray-800">
+                    </div>
+                </div>
+                <p class="text-xs text-green-700 mt-2">*Sistem otomatis menetapkan status <strong>Lunas / Belum Lunas</strong> sesuai nominal bayar vs total tagihan.</p>
             </div>
 
             <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 px-10 rounded-md transition-colors shadow-lg text-lg mt-6">
@@ -172,12 +182,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const diskon = document.getElementById('diskontransaksi').value || 0;
         const charge = document.getElementById('jumlah_charge').value || 0;
         const bayar = document.getElementById('jumlah_bayar').value || 0;
+        const tglBayar = document.getElementById('tanggal_bayar').value;
         const total = document.getElementById('total_harga_hidden').value;
 
-        const totalRp = parseInt(total).toLocaleString('id-ID');
-        const diskonRp = parseInt(diskon).toLocaleString('id-ID');
-        const chargeRp = parseInt(charge).toLocaleString('id-ID');
-        const bayarRp = parseInt(bayar).toLocaleString('id-ID');
+        const totalRp = (parseInt(total) || 0).toLocaleString('id-ID');
+        const diskonRp = (parseInt(diskon) || 0).toLocaleString('id-ID');
+        const chargeRp = (parseInt(charge) || 0).toLocaleString('id-ID');
+        const bayarRp = (parseInt(bayar) || 0).toLocaleString('id-ID');
         
         const statusVisual = (parseInt(bayar) >= parseInt(total)) ? "LUNAS" : "BELUM LUNAS";
 
@@ -189,6 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       `• Potongan  : Rp ${diskonRp}\n` +
                       `• Biaya Chg : Rp ${chargeRp}\n\n` +
                       `[Ringkasan Pembayaran]\n` +
+                      `• Tgl Dibayar   : ${tglBayar}\n` +
                       `• TOTAL TAGIHAN : Rp ${totalRp}\n` +
                       `• NOMINAL BAYAR : Rp ${bayarRp}\n` +
                       `• STATUS SISTEM : ${statusVisual}\n\n` +

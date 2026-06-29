@@ -52,13 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kontak_darurat = trim($_POST['kontakdarurat']);
     $status = $mode_edit ? $_POST['statuscustomer'] : 'Aktif';
 
-    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail (Default 1 jika lepas)
+    // PROTEKSI NULL: Ambil ID User dari Session Aktif untuk Audit Trail
     $id_user_aktif = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 1;
 
     if (empty($nik) || empty($nama)) {
         $pesan_error = "NIK dan Nama Customer wajib diisi!";
     } else {
-        
         // PENGAMANAN FOLDER: Buat folder uploads jika belum ada
         if (!is_dir('uploads')) {
             mkdir('uploads', 0777, true);
@@ -111,6 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Kalkulasi ulang di backend untuk pengamanan
                 $total_tagihan_final = $jumlahtransaksi - $diskon + $charge; 
                 $bayar = (int)$_POST['jumlah_bayar'];
+                // Tangkap Tanggal Bayar
+                $tanggal_bayar = !empty($_POST['tanggal_bayar']) ? $_POST['tanggal_bayar'] : date('Y-m-d');
                 
                 $status_bayar = ($bayar >= $total_tagihan_final) ? 'Lunas' : 'Belum Lunas';
 
@@ -121,9 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 elseif ($jenissewa == 'Harian') { $date_obj->modify("+$durasi days"); }
                 $habissewa = $date_obj->format('Y-m-d');
 
-                // INSERT TRANSAKSI SEWA BARU 
-                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlah_charge, jumlahtransaksi, jumlah_bayar, status_bayar, tanggal_bayar, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?)");
-                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $jumlahtransaksi, $bayar, $status_bayar, $id_kamar, $new_customer_id, $id_user_aktif]);
+                // INSERT TRANSAKSI SEWA BARU DENGAN TANGGAL BAYAR YANG DIPILIH
+                $stmt_trans = $koneksi->prepare("INSERT INTO table_transaksi (tanggaltransaksi, mulaisewa, habissewa, namatransaksi, diskontransaksi, jumlah_charge, jumlahtransaksi, jumlah_bayar, status_bayar, tanggal_bayar, id_kamar, id_customer, id) VALUES (CURDATE(), ?, ?, 'Sewa Baru', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_trans->execute([$mulaisewa, $habissewa, $diskon, $charge, $jumlahtransaksi, $bayar, $status_bayar, $tanggal_bayar, $id_kamar, $new_customer_id, $id_user_aktif]);
 
                 // UPDATE STATUS KAMAR
                 $stmt_kamar_update = $koneksi->prepare("UPDATE table_kamar SET status_kamar = 'Terisi' WHERE id_kamar = ?");
@@ -131,8 +132,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $koneksi->commit();
-            
-            // SOLUSI BLANK PAGE: Redirect aman berbasis JavaScript untuk menembus Headers Already Sent
             echo "<script>window.location.href='customer.php';</script>";
             exit;
 
@@ -144,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<div class="max-w-6xl mx-auto">
+<div class="max-w-6xl mx-auto pb-32">
     <div class="mb-6">
         <a href="customer.php" class="text-sm font-semibold text-gray-500 hover:text-black mb-2 inline-block">&larr; Kembali ke Data Customer</a>
     </div>
@@ -163,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <div class="flex flex-col lg:flex-row gap-8">
                 
+                <!-- BAGIAN KIRI: Profil Customer -->
                 <div class="flex-1 space-y-6">
                     <h3 class="font-bold text-gray-700 bg-gray-100 p-2 rounded">Informasi Pribadi & Kontak</h3>
                     
@@ -234,6 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                 </div>
 
+                <!-- BAGIAN KANAN: Transaksi (Hanya jika Tambah Baru) -->
                 <?php if (!$mode_edit): ?>
                 <div class="flex-1 space-y-5 bg-yellow-50 p-6 rounded-lg border border-yellow-200 shadow-inner relative">
                     <h3 class="font-bold text-yellow-800 border-b border-yellow-300 pb-2 flex items-center gap-2">
@@ -253,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Pilih Kamar Kosong</label>
                         <select name="id_kamar" id="id_kamar" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-gray-100 cursor-not-allowed" disabled required>
-                            <option value="" disabled selected>-- Pilih Kost Terlevelih Dahulu --</option>
+                            <option value="" disabled selected>-- Pilih Kost Terlebih Dahulu --</option>
                         </select>
                     </div>
 
@@ -302,9 +303,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     
                     <div class="bg-green-50 border border-green-200 p-4 rounded-lg mt-2">
-                        <label class="block text-sm font-bold text-green-800 mb-1">Nominal Telah Dibayar (Rp)</label>
-                        <input type="number" name="jumlah_bayar" id="jumlah_bayar" value="0" min="0" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg text-gray-800">
-                        <p class="text-xs text-green-700 mt-1">*Sistem otomatis menetapkan status <strong>Lunas / Belum Lunas</strong> sesuai nominal bayar vs total tagihan.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-green-800 mb-1">Tgl Pembayaran *</label>
+                                <input type="date" name="tanggal_bayar" id="tanggal_bayar" value="<?= date('Y-m-d') ?>" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-green-800 mb-1">Nominal Telah Dibayar (Rp) *</label>
+                                <input type="number" name="jumlah_bayar" id="jumlah_bayar" value="0" min="0" required class="w-full border border-green-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg text-gray-800">
+                            </div>
+                        </div>
+                        <p class="text-xs text-green-700 mt-2">*Sistem otomatis menetapkan status <strong>Lunas / Belum Lunas</strong> sesuai nominal bayar vs total tagihan.</p>
                     </div>
 
                 </div>
@@ -348,6 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const diskon = document.getElementById('diskontransaksi').value || 0;
             const charge = document.getElementById('jumlah_charge').value || 0;
             const total = document.getElementById('total_harga_hidden').value;
+            const tglBayar = document.getElementById('tanggal_bayar').value;
             const bayar = document.getElementById('jumlah_bayar').value || 0;
 
             const totalRp = (parseInt(total) || 0).toLocaleString('id-ID');
@@ -357,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             const statusVisual = (parseInt(bayar) >= parseInt(total)) ? "LUNAS" : "BELUM LUNAS";
 
-            pesan = `KONFIRMASI PENDAFTARAN & SEWA BARU:\n\n[Data Pribadi]\n• Nama : ${nama}\n• NIK : ${nik}\n\n[Rincian Sewa]\n• Properti : ${namaKost}\n• Alokasi : ${nomorKamar}\n• Tgl Mulai : ${tglMulai}\n• Kontrak : ${durasi} ${jenisSewa}\n• Potongan : Rp ${diskonRp}\n• Biaya Charge : Rp ${chargeRp}\n\n[Ringkasan Pembayaran]\n• TOTAL TAGIHAN : Rp ${totalRp}\n• NOMINAL DIBAYAR : Rp ${bayarRp}\n• STATUS SISTEM : ${statusVisual}\n\nApakah rincian pendaftaran ini sudah benar?`;
+            pesan = `KONFIRMASI PENDAFTARAN & SEWA BARU:\n\n[Data Pribadi]\n• Nama : ${nama}\n• NIK : ${nik}\n\n[Rincian Sewa]\n• Properti : ${namaKost}\n• Alokasi : ${nomorKamar}\n• Tgl Mulai : ${tglMulai}\n• Kontrak : ${durasi} ${jenisSewa}\n• Potongan : Rp ${diskonRp}\n• Biaya Charge : Rp ${chargeRp}\n\n[Ringkasan Pembayaran]\n• Tgl Dibayar : ${tglBayar}\n• TOTAL TAGIHAN : Rp ${totalRp}\n• NOMINAL DIBAYAR : Rp ${bayarRp}\n• STATUS SISTEM : ${statusVisual}\n\nApakah rincian pendaftaran ini sudah benar?`;
         }
         return confirm(pesan);
     }

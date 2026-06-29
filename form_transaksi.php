@@ -51,7 +51,7 @@ if (isset($_GET['edit'])) {
     if ($data_db) {
         $edit_data = $data_db;
     } else {
-        header("Location: keuangan.php");
+        echo "<script>window.location.href='keuangan.php';</script>";
         exit;
     }
 }
@@ -92,13 +92,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $koneksi->prepare("INSERT INTO table_transaksi (id_customer, id_kamar, tanggaltransaksi, namatransaksi, mulaisewa, habissewa, jumlahtransaksi, diskontransaksi, jumlah_charge, jumlah_bayar, status_bayar, tanggal_bayar, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$id_customer, $id_kamar, $tanggaltransaksi, $namatransaksi, $mulaisewa, $habissewa, $jumlahtransaksi, $diskontransaksi, $jumlah_charge, $jumlah_bayar, $status_bayar, $tanggal_bayar, $id_user_aktif]);
         }
-        header("Location: keuangan.php");
+        
+        // SOLUSI BLANK PAGE: Redirect Javascript
+        echo "<script>window.location.href='keuangan.php';</script>";
         exit;
     }
 }
 ?>
 
-<div class="max-w-4xl mx-auto">
+<div class="max-w-4xl mx-auto pb-32">
     <div class="mb-6">
         <a href="keuangan.php" class="text-sm font-semibold text-gray-500 hover:text-black mb-2 inline-block">&larr; Kembali ke Keuangan</a>
     </div>
