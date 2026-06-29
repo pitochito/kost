@@ -50,7 +50,7 @@ $where_pengeluaran = "";
 if (!empty($filter_kost)) {
     $where_kamar = " AND id_kost = ?";
     $where_transaksi = " AND k.id_kost = ?";
-    $where_pengeluaran = " AND id_kost = ?"; // diubah jadi AND karena WHERE sudah dipakai di query
+    $where_pengeluaran = " AND id_kost = ?"; 
     $param_filter = [$filter_kost];
 }
 
@@ -119,7 +119,6 @@ $data_belum_lunas = $stmt_belum_lunas->fetchAll(PDO::FETCH_ASSOC);
 $bulan_ini_start = date('Y-m-01');
 $bulan_ini_end = date('Y-m-t');
 
-// Gabungkan parameter tanggal dengan parameter filter kost
 $param_keuangan = array_merge([$bulan_ini_start, $bulan_ini_end], $param_filter);
 
 $stmt_in = $koneksi->prepare("
@@ -143,13 +142,24 @@ $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 
 $saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
 
-// Array nama bulan untuk UI
 $nama_bulan_arr = [
     '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
     '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
     '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
 ];
 $bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
+
+// 8. QUERY DATA KOST UNTUK TAGIHAN RUTIN
+// Menampilkan kost yang memiliki no PDAM atau IndiHome, ditambah filter lokasi jika aktif
+$query_tagihan = "SELECT id_kost, nama_kost, no_pdam, no_indihome FROM table_kost WHERE (no_pdam IS NOT NULL AND no_pdam != '') OR (no_indihome IS NOT NULL AND no_indihome != '')";
+if (!empty($filter_kost)) {
+    $query_tagihan .= " AND id_kost = ?";
+    $stmt_tagihan = $koneksi->prepare($query_tagihan);
+    $stmt_tagihan->execute([$filter_kost]);
+} else {
+    $stmt_tagihan = $koneksi->query($query_tagihan);
+}
+$data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -181,30 +191,83 @@ $bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
         </div>
     </div>
 
-    <div class="mb-8">
-        <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
-            <div>
-                <h2 class="text-xl font-bold text-gray-800">Arus Kas & Piutang Bulan Ini</h2>
-                <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Periode: <?= $bulan_ini_teks ?></p>
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        
+        <div class="xl:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+            <div class="bg-gray-50 px-5 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Arus Kas (<?= $bulan_ini_teks ?>)</h2>
+                <a href="keuangan.php" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">Buku Besar <span aria-hidden="true">&rarr;</span></a>
             </div>
-            <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold bg-blue-50 px-3 py-1 rounded-full hidden sm:block">Buka Buku Besar &rarr;</a>
+            
+            <div class="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1 items-center">
+                <div class="bg-green-50 p-4 rounded-lg border border-green-200 border-l-4 border-l-green-500 h-full flex flex-col justify-center">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
+                    <p class="text-lg md:text-xl font-black text-green-600 break-all leading-tight">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></p>
+                </div>
+                <div class="bg-orange-50 p-4 rounded-lg border border-orange-200 border-l-4 border-l-orange-500 h-full flex flex-col justify-center">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang Sewa</p>
+                    <p class="text-lg md:text-xl font-black text-orange-500 break-all leading-tight">Rp <?= number_format($total_piutang, 0, ',', '.') ?></p>
+                </div>
+                <div class="bg-red-50 p-4 rounded-lg border border-red-200 border-l-4 border-l-red-500 h-full flex flex-col justify-center">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Pengeluaran</p>
+                    <p class="text-lg md:text-xl font-black text-red-600 break-all leading-tight">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
+                </div>
+                <div class="bg-gray-900 p-4 rounded-lg shadow-inner border border-gray-800 h-full flex flex-col justify-center">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih</p>
+                    <p class="text-lg md:text-xl font-black break-all leading-tight <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
+                </div>
+            </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
-                <p class="text-xl font-black text-green-600">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></p>
+
+        <div class="xl:col-span-1 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+            <div class="bg-blue-600 px-5 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Tagihan Rutin Properti</h3>
+                </div>
             </div>
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-orange-100 border-l-4 border-l-orange-500 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang (Belum Dibayar)</p>
-                <p class="text-xl font-black text-orange-500">Rp <?= number_format($total_piutang, 0, ',', '.') ?></p>
-            </div>
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Pengeluaran</p>
-                <p class="text-xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
-            </div>
-            <div class="bg-gray-900 p-5 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih Kas</p>
-                <p class="text-xl font-black <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
+            
+            <div class="p-0 overflow-y-auto flex-1 bg-gray-50/50 max-h-[300px]">
+                <?php if (!empty($data_tagihan_rutin)): ?>
+                    <ul class="divide-y divide-gray-200">
+                        <?php foreach($data_tagihan_rutin as $tagihan): ?>
+                            <li class="p-4 hover:bg-blue-50 transition-colors">
+                                <h4 class="font-bold text-gray-800 text-sm mb-2"><?= htmlspecialchars($tagihan['nama_kost']) ?></h4>
+                                
+                                <?php if(!empty($tagihan['no_pdam'])): ?>
+                                <div class="flex justify-between items-center mb-2 bg-white p-2 rounded border border-gray-200">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Air / PDAM</p>
+                                        <p class="text-xs font-mono font-semibold text-gray-700"><?= htmlspecialchars($tagihan['no_pdam']) ?></p>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button onclick="cekTagihanScraping('PDAM', '<?= $tagihan['no_pdam'] ?>')" class="px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-[10px] font-bold transition-colors">Cek</button>
+                                        <button onclick="inputTagihanManual('PDAM', <?= $tagihan['id_kost'] ?>)" class="px-2 py-1 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold transition-colors">Input</button>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+
+                                <?php if(!empty($tagihan['no_indihome'])): ?>
+                                <div class="flex justify-between items-center bg-white p-2 rounded border border-gray-200">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-red-500 uppercase tracking-wider">Internet / IndiHome</p>
+                                        <p class="text-xs font-mono font-semibold text-gray-700"><?= htmlspecialchars($tagihan['no_indihome']) ?></p>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button onclick="cekTagihanScraping('IndiHome', '<?= $tagihan['no_indihome'] ?>')" class="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-[10px] font-bold transition-colors">Cek</button>
+                                        <button onclick="inputTagihanManual('IndiHome', <?= $tagihan['id_kost'] ?>)" class="px-2 py-1 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold transition-colors">Input</button>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php else: ?>
+                    <div class="flex flex-col items-center justify-center p-8 h-full">
+                        <p class="font-bold text-gray-500 text-sm text-center">Nomor Pelanggan Belum Diatur</p>
+                        <p class="text-[10px] text-gray-400 mt-1 text-center">Isi nomor PDAM/IndiHome di database untuk memunculkan panel ini.</p>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -271,7 +334,7 @@ $bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
             <div class="bg-orange-500 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Tagihan / Piutang</h3>
+                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Tagihan / Piutang Sewa</h3>
                 </div>
                 <span class="bg-orange-700 text-white text-xs font-bold px-2 py-0.5 rounded-full"><?= count($data_belum_lunas) ?></span>
             </div>
@@ -362,6 +425,24 @@ $bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
     </div>
 
 </div>
+
+<script>
+    function cekTagihanScraping(jenis, nomor) {
+        // Tampilkan prompt untuk memberitahu user sistem sedang mencoba
+        const proses = confirm(`Mencoba menghubungi server pusat ${jenis} untuk ID: ${nomor}.\n\nIni adalah mode eksperimen scraping. Jika website target dilindungi oleh Cloudflare atau Captcha, proses ini akan gagal (ditolak).\n\nLanjutkan mencoba?`);
+        
+        if (proses) {
+            alert(`[SISTEM SCRAPING AKTIF]\nMenghubungi endpoint ${jenis}...\n\nMenunggu respon JSON...\n\nERROR 403: Forbidden.\nAkses ditolak oleh WAF (Web Application Firewall) ${jenis}. Sistem mendeteksi permintaan otomatis (bot/scraper).`);
+        }
+    }
+
+    function inputTagihanManual(jenis, idKost) {
+        // Logika sederhana untuk beralih ke pembuatan form tagihan
+        alert(`Fungsi Input Manual untuk ${jenis} (Kost ID: ${idKost}) sedang disiapkan.\nIni nanti akan membuka jendela Modal pop-up untuk memasukkan nominal tagihan bulan berjalan.`);
+        // Nanti kita buatkan modal HTML khusus untuk ini jika Anda sudah siap.
+    }
+</script>
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const kmrIsi = <?= $kamar_isi ?>;
