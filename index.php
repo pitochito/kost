@@ -3,60 +3,64 @@ require 'koneksi.php';
 require 'header.php';
 
 // ==============================================================================
-// 1. PROSES POST: TAGIHAN RUTIN (INPUT / BAYAR)
+// 1. PROSES POST: TAGIHAN RUTIN (INPUT / EDIT / BAYAR)
 // ==============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aksi_tagihan'])) {
     $aksi = $_POST['aksi_tagihan'];
     $id_user_aktif = $_SESSION['user_id'] ?? 1;
 
-    if ($aksi === 'simpan_nominal') {
+    if ($aksi === 'simpan_tagihan') {
         $id_kost_tagihan = (int)$_POST['id_kost'];
         $jenis = $_POST['jenis_tagihan'];
         $nominal = (int)$_POST['nominal_tagihan'];
+        $status_bayar = $_POST['status_bayar']; // 'Belum Bayar' atau 'Lunas'
+        $tanggal_bayar = $_POST['tanggal_bayar'] ?: date('Y-m-d');
+        
         $bulan = date('m');
         $tahun = date('Y');
 
-        // Cek apakah bulan ini sudah ada
-        $cek = $koneksi->prepare("SELECT id_tagihan FROM table_tagihan_rutin WHERE id_kost=? AND jenis_tagihan=? AND bulan_tagihan=? AND tahun_tagihan=?");
+        // Cek apakah data bulan ini sudah ada
+        $cek = $koneksi->prepare("SELECT * FROM table_tagihan_rutin WHERE id_kost=? AND jenis_tagihan=? AND bulan_tagihan=? AND tahun_tagihan=?");
         $cek->execute([$id_kost_tagihan, $jenis, $bulan, $tahun]);
-        $id_ada = $cek->fetchColumn();
-
-        if ($id_ada) {
-            $upd = $koneksi->prepare("UPDATE table_tagihan_rutin SET nominal=? WHERE id_tagihan=?");
-            $upd->execute([$nominal, $id_ada]);
-        } else {
-            $ins = $koneksi->prepare("INSERT INTO table_tagihan_rutin (id_kost, jenis_tagihan, bulan_tagihan, tahun_tagihan, nominal, status_bayar) VALUES (?, ?, ?, ?, ?, 'Belum Bayar')");
-            $ins->execute([$id_kost_tagihan, $jenis, $bulan, $tahun, $nominal]);
-        }
-        echo "<script>window.location.href='index.php?pesan=tagihan_disimpan';</script>";
-        exit;
-
-    } elseif ($aksi === 'lunasi_tagihan') {
-        $id_tagihan = (int)$_POST['id_tagihan'];
-        
-        $cek = $koneksi->prepare("SELECT * FROM table_tagihan_rutin WHERE id_tagihan=?");
-        $cek->execute([$id_tagihan]);
         $tag = $cek->fetch(PDO::FETCH_ASSOC);
 
-        if ($tag && $tag['status_bayar'] === 'Belum Bayar') {
-            try {
-                $koneksi->beginTransaction();
-                
-                $tgl_bayar = date('Y-m-d');
-                $koneksi->prepare("UPDATE table_tagihan_rutin SET status_bayar='Lunas', tanggal_bayar=? WHERE id_tagihan=?")->execute([$tgl_bayar, $id_tagihan]);
+        $id_ada = $tag['id_tagihan'] ?? null;
+        $status_sebelumnya = $tag['status_bayar'] ?? 'Belum Bayar';
 
-                $nama_pengeluaran = "Tagihan " . $tag['jenis_tagihan'] . " Bln " . $tag['bulan_tagihan'] . "/" . $tag['tahun_tagihan'];
+        try {
+            $koneksi->beginTransaction();
+
+            if ($id_ada) {
+                // Cegah edit jika di database sebenarnya sudah lunas
+                if ($status_sebelumnya !== 'Lunas') {
+                    $tgl_db = ($status_bayar === 'Lunas') ? $tanggal_bayar : null;
+                    $upd = $koneksi->prepare("UPDATE table_tagihan_rutin SET nominal=?, status_bayar=?, tanggal_bayar=? WHERE id_tagihan=?");
+                    $upd->execute([$nominal, $status_bayar, $tgl_db, $id_ada]);
+                }
+            } else {
+                $tgl_db = ($status_bayar === 'Lunas') ? $tanggal_bayar : null;
+                $ins = $koneksi->prepare("INSERT INTO table_tagihan_rutin (id_kost, jenis_tagihan, bulan_tagihan, tahun_tagihan, nominal, status_bayar, tanggal_bayar) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $ins->execute([$id_kost_tagihan, $jenis, $bulan, $tahun, $nominal, $status_bayar, $tgl_db]);
+            }
+
+            // Jika status baru diset Lunas (dan sebelumnya Belum Bayar), otomatis catat ke Buku Besar Pengeluaran
+            if ($status_bayar === 'Lunas' && $status_sebelumnya === 'Belum Bayar') {
+                $nama_pengeluaran = "Tagihan " . $jenis . " Bln " . $bulan . "/" . $tahun;
                 $kategori = "Tagihan Utilitas"; 
                 
                 $ins_out = $koneksi->prepare("INSERT INTO table_pengeluaran (jenispengeluaran, kategoripengeluaran, namapengeluaran, tanggalpengeluaran, jumlahpengeluaran, id_kost, id) VALUES ('Operasional', ?, ?, ?, ?, ?, ?)");
-                $ins_out->execute([$kategori, $nama_pengeluaran, $tgl_bayar, $tag['nominal'], $tag['id_kost'], $id_user_aktif]);
-
-                $koneksi->commit();
-                echo "<script>window.location.href='index.php?pesan=tagihan_lunas';</script>";
-                exit;
-            } catch (Exception $e) {
-                $koneksi->rollBack();
+                $ins_out->execute([$kategori, $nama_pengeluaran, $tanggal_bayar, $nominal, $id_kost_tagihan, $id_user_aktif]);
             }
+
+            $koneksi->commit();
+            
+            $pesan_redir = ($status_bayar === 'Lunas') ? 'tagihan_lunas' : 'tagihan_disimpan';
+            echo "<script>window.location.href='index.php?pesan=$pesan_redir';</script>";
+            exit;
+
+        } catch (Exception $e) {
+            $koneksi->rollBack();
+            // Handle error silently or log it
         }
     }
 }
@@ -232,19 +236,16 @@ foreach ($rutin_db as $r) {
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- WRAPPER UTAMA -->
 <div class="pb-32 max-w-[1400px] mx-auto">
 
-    <!-- Notifikasi Sistem -->
     <?php if(isset($_GET['pesan'])): ?>
         <?php if($_GET['pesan'] == 'tagihan_disimpan'): ?>
-            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold">Nominal tagihan berhasil disimpan.</div>
+            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded shadow-sm font-semibold">Nominal tagihan bulan ini berhasil dicatat/diperbarui.</div>
         <?php elseif($_GET['pesan'] == 'tagihan_lunas'): ?>
-            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded shadow-sm font-semibold">Pembayaran berhasil! Biaya tagihan sudah dicatat ke dalam Buku Besar.</div>
+            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold">Pembayaran berhasil! Biaya tagihan otomatis masuk ke Buku Besar Pengeluaran.</div>
         <?php endif; ?>
     <?php endif; ?>
 
-    <!-- HEADER & GLOBAL FILTER -->
     <div class="mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
         <div>
             <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Selamat datang, <span class="text-yellow-600 capitalize"><?= htmlspecialchars($user_aktif) ?></span>!</h1>
@@ -270,10 +271,8 @@ foreach ($rutin_db as $r) {
         </div>
     </div>
 
-    <!-- GRID KEUANGAN (KIRI) & TAGIHAN RUTIN (KANAN) -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         
-        <!-- KOLOM KIRI (Arus Kas - Tabel Rapi) -->
         <div class="xl:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-emerald-600 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -307,12 +306,11 @@ foreach ($rutin_db as $r) {
             </div>
         </div>
 
-        <!-- KOLOM KANAN (Tagihan Rutin Input/Edit) -->
         <div class="xl:col-span-1 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-blue-600 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Tagihan Rutin Properti</h3>
+                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Tagihan (<?= $bulan_ini_teks ?>)</h3>
                 </div>
             </div>
             
@@ -337,12 +335,12 @@ foreach ($rutin_db as $r) {
                                     </div>
                                     <div class="flex gap-1">
                                         <?php if(!$pdam): ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '')" class="px-3 py-1.5 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '', false)" class="px-3 py-1.5 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
                                         <?php elseif($pdam['status_bayar'] === 'Lunas'): ?>
                                             <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider">Lunas</span>
                                         <?php else: ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>)" class="px-2 py-1.5 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
-                                            <button onclick="konfirmasiBayarTagihan(<?= $pdam['id_tagihan'] ?>, 'PDAM')" class="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-[10px] font-bold shadow-sm transition-colors">Sdh Bayar</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>, false)" class="px-2 py-1.5 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>, true)" class="px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded text-[10px] font-bold shadow-sm transition-colors">Bayar</button>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -362,12 +360,12 @@ foreach ($rutin_db as $r) {
                                     </div>
                                     <div class="flex gap-1">
                                         <?php if(!$indihome): ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '')" class="px-3 py-1.5 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '', false)" class="px-3 py-1.5 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
                                         <?php elseif($indihome['status_bayar'] === 'Lunas'): ?>
                                             <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider">Lunas</span>
                                         <?php else: ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>)" class="px-2 py-1.5 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
-                                            <button onclick="konfirmasiBayarTagihan(<?= $indihome['id_tagihan'] ?>, 'IndiHome')" class="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-[10px] font-bold shadow-sm transition-colors">Sdh Bayar</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>, false)" class="px-2 py-1.5 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>, true)" class="px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded text-[10px] font-bold shadow-sm transition-colors">Bayar</button>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -385,10 +383,8 @@ foreach ($rutin_db as $r) {
         </div>
     </div>
 
-    <!-- PENGINGAT (JATUH TEMPO & PIUTANG) DALAM 1 JENDELA GRID -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
         
-        <!-- KOLOM KIRI: JATUH TEMPO -->
         <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-red-500 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -445,7 +441,6 @@ foreach ($rutin_db as $r) {
             </div>
         </div>
 
-        <!-- KOLOM KANAN: TAGIHAN BELUM LUNAS -->
         <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-orange-500 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -502,7 +497,6 @@ foreach ($rutin_db as $r) {
 
     </div>
 
-    <!-- STATISTIK PROPERTI -->
     <div class="mb-4">
         <h2 class="text-xl font-bold text-gray-800 border-b border-gray-200 pb-2">Status Properti Saat Ini</h2>
     </div>
@@ -525,7 +519,6 @@ foreach ($rutin_db as $r) {
         </div>
     </div>
 
-    <!-- CHARTS -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
             <h3 class="w-full text-left font-bold text-gray-700 mb-4 border-b pb-2">Rasio Okupansi Kamar</h3>
@@ -543,46 +536,70 @@ foreach ($rutin_db as $r) {
     </div>
 
 </div>
-<!-- TUTUP WRAPPER PADDING BOTTOM -->
-
-<!-- MODAL INPUT/EDIT TAGIHAN RUTIN -->
 <div id="modal_tagihan" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
         <div class="bg-blue-600 px-6 py-4 flex justify-between items-center">
             <h3 class="font-bold text-white text-lg" id="modal_tagihan_title">Input Tagihan</h3>
             <button type="button" onclick="tutupModalTagihan()" class="text-white hover:text-blue-200 font-bold text-xl">&times;</button>
         </div>
-        <form action="index.php" method="POST" class="p-6">
-            <input type="hidden" name="aksi_tagihan" value="simpan_nominal">
+        
+        <form action="index.php" method="POST" class="p-6" onsubmit="return konfirmasiTagihan()">
+            <input type="hidden" name="aksi_tagihan" value="simpan_tagihan">
             <input type="hidden" name="id_kost" id="modal_id_kost">
             <input type="hidden" name="jenis_tagihan" id="modal_jenis_tagihan">
             
-            <div class="mb-4 bg-gray-50 p-3 rounded border border-gray-200">
-                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Properti & Layanan</p>
-                <p class="font-bold text-gray-800" id="modal_detail_layanan"></p>
+            <div class="mb-4 bg-gray-50 p-3 rounded border border-gray-200 shadow-inner">
+                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Periode Tagihan</p>
+                <p class="font-black text-blue-700 text-lg uppercase"><?= $bulan_ini_teks ?></p>
+                <p class="text-xs font-semibold text-gray-700 mt-2 border-t pt-2" id="modal_detail_layanan"></p>
             </div>
             
-            <div class="mb-6">
+            <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nominal Tagihan (Rp) <span class="text-red-500">*</span></label>
-                <input type="number" name="nominal_tagihan" id="modal_nominal" required min="0" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
+                <input type="number" name="nominal_tagihan" id="modal_nominal" required min="1" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-lg text-gray-800 bg-white">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-bold text-gray-700 mb-1">Status Pembayaran</label>
+                <select name="status_bayar" id="modal_status_bayar" class="w-full border border-gray-300 px-4 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white font-semibold" onchange="toggleTanggalBayar()">
+                    <option value="Belum Bayar">Belum Dibayar</option>
+                    <option value="Lunas">Sudah Dibayar (Lunas)</option>
+                </select>
+            </div>
+
+            <div id="wrap_tanggal_bayar" class="mb-6 hidden bg-green-50 p-3 border border-green-200 rounded">
+                <label class="block text-xs font-bold text-green-800 mb-1">Pilih Tanggal Pembayaran <span class="text-red-500">*</span></label>
+                <input type="date" name="tanggal_bayar" id="modal_tanggal_bayar" value="<?= date('Y-m-d') ?>" class="w-full border border-green-300 px-3 py-1.5 rounded focus:ring-2 focus:ring-green-500 font-medium text-sm">
+                <p class="text-[9px] text-green-700 mt-1 italic">*Tgl ini akan tercatat di Buku Besar Pengeluaran.</p>
             </div>
             
-            <div class="flex gap-3 justify-end mt-2">
-                <button type="button" onclick="tutupModalTagihan()" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors shadow-sm">Batal</button>
-                <button type="submit" class="px-5 py-2.5 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-md">Simpan</button>
+            <div class="flex gap-3 justify-end border-t border-gray-200 pt-4 mt-2">
+                <button type="button" onclick="tutupModalTagihan()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300 transition-colors shadow-sm">Batal</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-md">Simpan Data</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-    // JS UNTUK MODAL TAGIHAN
-    function bukaModalTagihan(idKost, jenis, namaKost, currentNominal) {
+    // JS UNTUK MODAL TAGIHAN UNIFIED (INPUT/EDIT/BAYAR)
+    function bukaModalTagihan(idKost, jenis, namaKost, currentNominal, setLunas) {
         document.getElementById('modal_id_kost').value = idKost;
         document.getElementById('modal_jenis_tagihan').value = jenis;
-        document.getElementById('modal_detail_layanan').textContent = `${namaKost} - ${jenis}`;
+        
+        document.getElementById('modal_detail_layanan').textContent = `Layanan: ${jenis} - ${namaKost}`;
         document.getElementById('modal_nominal').value = currentNominal || '';
-        document.getElementById('modal_tagihan_title').textContent = currentNominal ? 'Edit Nominal Tagihan' : 'Input Tagihan Bulan Ini';
+        
+        const statusSelect = document.getElementById('modal_status_bayar');
+        if (setLunas) {
+            statusSelect.value = 'Lunas';
+            document.getElementById('modal_tagihan_title').textContent = 'Pelunasan Tagihan';
+        } else {
+            statusSelect.value = 'Belum Bayar';
+            document.getElementById('modal_tagihan_title').textContent = currentNominal ? 'Edit Tagihan Bulan Ini' : 'Input Tagihan Baru';
+        }
+        
+        toggleTanggalBayar(); 
         document.getElementById('modal_tagihan').classList.remove('hidden');
     }
 
@@ -590,27 +607,28 @@ foreach ($rutin_db as $r) {
         document.getElementById('modal_tagihan').classList.add('hidden');
     }
 
-    // JS UNTUK KONFIRMASI PEMBAYARAN TAGIHAN (AUTO-POST)
-    function konfirmasiBayarTagihan(idTagihan, jenis) {
-        if(confirm(`Konfirmasi Pelunasan:\n\nApakah tagihan ${jenis} ini sudah Anda bayarkan (transfer) ke penyedia layanan?\n\nJika 'OK', sistem akan mengubah status menjadi LUNAS dan secara otomatis memasukannya ke dalam Buku Besar (Pengeluaran).`)) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = 'index.php';
-            
-            const inputAksi = document.createElement('input');
-            inputAksi.type = 'hidden';
-            inputAksi.name = 'aksi_tagihan';
-            inputAksi.value = 'lunasi_tagihan';
-            
-            const inputId = document.createElement('input');
-            inputId.type = 'hidden';
-            inputId.name = 'id_tagihan';
-            inputId.value = idTagihan;
-            
-            form.appendChild(inputAksi);
-            form.appendChild(inputId);
-            document.body.appendChild(form);
-            form.submit();
+    function toggleTanggalBayar() {
+        const status = document.getElementById('modal_status_bayar').value;
+        const wrapTgl = document.getElementById('wrap_tanggal_bayar');
+        if(status === 'Lunas') {
+            wrapTgl.classList.remove('hidden');
+            document.getElementById('modal_tanggal_bayar').setAttribute('required', 'true');
+        } else {
+            wrapTgl.classList.add('hidden');
+            document.getElementById('modal_tanggal_bayar').removeAttribute('required');
+        }
+    }
+
+    function konfirmasiTagihan() {
+        const status = document.getElementById('modal_status_bayar').value;
+        const nominal = parseInt(document.getElementById('modal_nominal').value).toLocaleString('id-ID');
+        const jenis = document.getElementById('modal_jenis_tagihan').value;
+        const tglBayar = document.getElementById('modal_tanggal_bayar').value;
+
+        if (status === 'Lunas') {
+            return confirm(`KONFIRMASI PELUNASAN:\n\nAnda mengatur tagihan ${jenis} sebesar Rp ${nominal} menjadi LUNAS pada tanggal ${tglBayar}.\n\nSistem akan otomatis mencatat ini sebagai Pengeluaran Operasional di Buku Besar.\n\nLanjutkan?`);
+        } else {
+            return confirm(`Simpan nominal tagihan ${jenis} bulan ini sebesar Rp ${nominal}?`);
         }
     }
 </script>
