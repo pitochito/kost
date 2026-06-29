@@ -150,7 +150,6 @@ $nama_bulan_arr = [
 $bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
 
 // 8. QUERY DATA KOST UNTUK TAGIHAN RUTIN
-// Menampilkan kost yang memiliki no PDAM atau IndiHome, ditambah filter lokasi jika aktif
 $query_tagihan = "SELECT id_kost, nama_kost, no_pdam, no_indihome FROM table_kost WHERE (no_pdam IS NOT NULL AND no_pdam != '') OR (no_indihome IS NOT NULL AND no_indihome != '')";
 if (!empty($filter_kost)) {
     $query_tagihan .= " AND id_kost = ?";
@@ -164,8 +163,10 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<!-- WRAPPER UTAMA -->
 <div class="pb-32 max-w-[1400px] mx-auto">
 
+    <!-- HEADER & GLOBAL FILTER -->
     <div class="mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
         <div>
             <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Selamat datang, <span class="text-yellow-600 capitalize"><?= htmlspecialchars($user_aktif) ?></span>!</h1>
@@ -191,34 +192,44 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
+    <!-- GRID KEUANGAN (KIRI) & TAGIHAN RUTIN (KANAN) -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         
+        <!-- KOLOM KIRI (Arus Kas - Tabel Form) -->
         <div class="xl:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-            <div class="bg-gray-50 px-5 py-3 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Arus Kas (<?= $bulan_ini_teks ?>)</h2>
-                <a href="keuangan.php" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">Buku Besar <span aria-hidden="true">&rarr;</span></a>
+            <div class="bg-emerald-600 px-5 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Arus Kas (<?= $bulan_ini_teks ?>)</h3>
+                </div>
+                <a href="keuangan.php" class="text-xs text-white hover:text-emerald-100 font-semibold flex items-center gap-1">Buku Besar <span aria-hidden="true">&rarr;</span></a>
             </div>
             
-            <div class="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1 items-center">
-                <div class="bg-green-50 p-4 rounded-lg border border-green-200 border-l-4 border-l-green-500 h-full flex flex-col justify-center">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
-                    <p class="text-lg md:text-xl font-black text-green-600 break-all leading-tight">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></p>
-                </div>
-                <div class="bg-orange-50 p-4 rounded-lg border border-orange-200 border-l-4 border-l-orange-500 h-full flex flex-col justify-center">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang Sewa</p>
-                    <p class="text-lg md:text-xl font-black text-orange-500 break-all leading-tight">Rp <?= number_format($total_piutang, 0, ',', '.') ?></p>
-                </div>
-                <div class="bg-red-50 p-4 rounded-lg border border-red-200 border-l-4 border-l-red-500 h-full flex flex-col justify-center">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Pengeluaran</p>
-                    <p class="text-lg md:text-xl font-black text-red-600 break-all leading-tight">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
-                </div>
-                <div class="bg-gray-900 p-4 rounded-lg shadow-inner border border-gray-800 h-full flex flex-col justify-center">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih</p>
-                    <p class="text-lg md:text-xl font-black break-all leading-tight <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
-                </div>
+            <div class="p-0 overflow-x-auto flex-1 bg-gray-50/50">
+                <table class="w-full text-left border-collapse text-sm">
+                    <tbody class="divide-y divide-gray-200">
+                        <tr class="hover:bg-green-50 transition-colors">
+                            <td class="py-4 px-5 font-bold text-gray-700 w-1/2">Kas Masuk (Riil)</td>
+                            <td class="py-4 px-5 text-right font-black text-green-600 text-lg">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></td>
+                        </tr>
+                        <tr class="hover:bg-orange-50 transition-colors">
+                            <td class="py-4 px-5 font-bold text-gray-700">Piutang Sewa (Belum Dibayar)</td>
+                            <td class="py-4 px-5 text-right font-black text-orange-500 text-lg">Rp <?= number_format($total_piutang, 0, ',', '.') ?></td>
+                        </tr>
+                        <tr class="hover:bg-red-50 transition-colors">
+                            <td class="py-4 px-5 font-bold text-gray-700">Total Pengeluaran Operasional</td>
+                            <td class="py-4 px-5 text-right font-black text-red-600 text-lg">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></td>
+                        </tr>
+                        <tr class="bg-gray-900 text-white">
+                            <td class="py-4 px-5 font-bold tracking-wider uppercase text-gray-300">Saldo Bersih Kas</td>
+                            <td class="py-4 px-5 text-right font-black text-xl <?= $saldo_bersih >= 0 ? 'text-yellow-400' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
+        <!-- KOLOM KANAN (Tagihan Rutin) -->
         <div class="xl:col-span-1 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-blue-600 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -227,7 +238,7 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
             
-            <div class="p-0 overflow-y-auto flex-1 bg-gray-50/50 max-h-[300px]">
+            <div class="p-0 overflow-y-auto flex-1 bg-gray-50/50 max-h-[230px]">
                 <?php if (!empty($data_tagihan_rutin)): ?>
                     <ul class="divide-y divide-gray-200">
                         <?php foreach($data_tagihan_rutin as $tagihan): ?>
@@ -272,8 +283,10 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
+    <!-- PENGINGAT (JATUH TEMPO & PIUTANG) DALAM 1 JENDELA GRID -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
         
+        <!-- KOLOM KIRI: JATUH TEMPO -->
         <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-red-500 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -330,6 +343,7 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
 
+        <!-- KOLOM KANAN: TAGIHAN BELUM LUNAS -->
         <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div class="bg-orange-500 px-5 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -386,6 +400,7 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
 
     </div>
 
+    <!-- STATISTIK PROPERTI -->
     <div class="mb-4">
         <h2 class="text-xl font-bold text-gray-800 border-b border-gray-200 pb-2">Status Properti Saat Ini</h2>
     </div>
@@ -408,6 +423,7 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
+    <!-- CHARTS -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
             <h3 class="w-full text-left font-bold text-gray-700 mb-4 border-b pb-2">Rasio Okupansi Kamar</h3>
@@ -426,6 +442,7 @@ $data_tagihan_rutin = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
 
 </div>
 
+<!-- SCRIPT UNTUK CEK TAGIHAN SCRAPING & INPUT MANUAL -->
 <script>
     function cekTagihanScraping(jenis, nomor) {
         // Tampilkan prompt untuk memberitahu user sistem sedang mencoba
