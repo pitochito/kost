@@ -50,7 +50,7 @@ $where_pengeluaran = "";
 if (!empty($filter_kost)) {
     $where_kamar = " AND id_kost = ?";
     $where_transaksi = " AND k.id_kost = ?";
-    $where_pengeluaran = " WHERE id_kost = ?";
+    $where_pengeluaran = " AND id_kost = ?"; // diubah jadi AND karena WHERE sudah dipakai di query
     $param_filter = [$filter_kost];
 }
 
@@ -115,33 +115,46 @@ $stmt_belum_lunas = $koneksi->prepare($query_belum_lunas);
 $stmt_belum_lunas->execute($param_filter);
 $data_belum_lunas = $stmt_belum_lunas->fetchAll(PDO::FETCH_ASSOC);
 
-// 7. KALKULASI KEUANGAN (PIUTANG & KAS RIIL)
+// 7. KALKULASI KEUANGAN (HANYA BULAN BERJALAN SAJA)
+$bulan_ini_start = date('Y-m-01');
+$bulan_ini_end = date('Y-m-t');
+
+// Gabungkan parameter tanggal dengan parameter filter kost
+$param_keuangan = array_merge([$bulan_ini_start, $bulan_ini_end], $param_filter);
+
 $stmt_in = $koneksi->prepare("
     SELECT 
         SUM(t.jumlahtransaksi - t.diskontransaksi + t.jumlah_charge) as total_tagihan,
         SUM(t.jumlah_bayar) as uang_diterima
     FROM table_transaksi t 
     JOIN table_kamar k ON t.id_kamar = k.id_kamar 
-    WHERE 1=1 $where_transaksi
+    WHERE t.tanggaltransaksi BETWEEN ? AND ? $where_transaksi
 ");
-$stmt_in->execute($param_filter);
+$stmt_in->execute($param_keuangan);
 $hasil_sum = $stmt_in->fetch(PDO::FETCH_ASSOC);
 
 $total_pendapatan = $hasil_sum['total_tagihan'] ?: 0;
 $total_pemasukan_riil = $hasil_sum['uang_diterima'] ?: 0;
 $total_piutang = $total_pendapatan - $total_pemasukan_riil;
 
-$stmt_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran $where_pengeluaran");
-$stmt_out->execute($param_filter);
+$stmt_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran WHERE tanggalpengeluaran BETWEEN ? AND ? $where_pengeluaran");
+$stmt_out->execute($param_keuangan);
 $total_pengeluaran = $stmt_out->fetchColumn() ?: 0;
 
 $saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
+
+// Array nama bulan untuk UI
+$nama_bulan_arr = [
+    '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
+    '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
+    '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+];
+$bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- WRAPPER UTAMA DENGAN PADDING BOTTOM 32 UNTUK MOBILE -->
-<div class="pb-32">
+<div class="pb-32 max-w-[1400px] mx-auto">
 
     <div class="mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
         <div>
@@ -150,7 +163,6 @@ $saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
         </div>
         
         <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
-            <!-- Filter Lokasi -->
             <form action="index.php" method="GET" class="w-full sm:w-auto">
                 <select name="filter_kost" onchange="this.form.submit()" class="block w-full sm:w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
                     <option value="">Semua Lokasi (Global)</option>
@@ -162,7 +174,6 @@ $saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
                 </select>
             </form>
             
-            <!-- Tombol Cetak Laporan -->
             <a href="laporan.php?kost=<?= $filter_kost ?>" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2 text-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Laporan Bulanan
@@ -170,22 +181,167 @@ $saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Total Lokasi Dipantau</p>
-            <p class="text-3xl font-black text-gray-800"><?= $tampil_total_kost ?> <span class="text-sm font-medium text-gray-400">Properti</span></p>
+    <div class="mb-8">
+        <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
+            <div>
+                <h2 class="text-xl font-bold text-gray-800">Arus Kas & Piutang Bulan Ini</h2>
+                <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Periode: <?= $bulan_ini_teks ?></p>
+            </div>
+            <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold bg-blue-50 px-3 py-1 rounded-full hidden sm:block">Buka Buku Besar &rarr;</a>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Total Kapasitas Kamar</p>
-            <p class="text-3xl font-black text-gray-800"><?= $total_kamar ?> <span class="text-sm font-medium text-gray-400">Pintu</span></p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
+                <p class="text-xl font-black text-green-600">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-orange-100 border-l-4 border-l-orange-500 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang (Belum Dibayar)</p>
+                <p class="text-xl font-black text-orange-500">Rp <?= number_format($total_piutang, 0, ',', '.') ?></p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Pengeluaran</p>
+                <p class="text-xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
+            </div>
+            <div class="bg-gray-900 p-5 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih Kas</p>
+                <p class="text-xl font-black <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
+            </div>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Kamar Terisi</p>
-            <p class="text-3xl font-black text-green-600"><?= $kamar_isi ?> <span class="text-sm font-medium text-green-400">Pintu</span></p>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+        
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+            <div class="bg-red-500 px-5 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Sewa Segera Berakhir</h3>
+                </div>
+                <span class="bg-red-700 text-white text-xs font-bold px-2 py-0.5 rounded-full"><?= count($data_warning) ?></span>
+            </div>
+            
+            <div class="p-0 overflow-x-auto flex-1 bg-gray-50/50">
+                <?php if (!empty($data_warning)): ?>
+                <table class="w-full text-left border-collapse text-sm min-w-[450px]">
+                    <thead class="bg-gray-100 border-b border-gray-200">
+                        <tr>
+                            <th class="py-2 px-4 font-bold text-gray-700 text-xs">Customer (Kamar)</th>
+                            <th class="py-2 px-4 font-bold text-gray-700 text-xs">Sisa Waktu</th>
+                            <th class="py-2 px-4 font-bold text-gray-700 text-xs text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php foreach ($data_warning as $warn): ?>
+                        <tr class="hover:bg-red-50 transition-colors">
+                            <td class="py-3 px-4">
+                                <p class="font-bold text-gray-800 leading-tight"><?= htmlspecialchars($warn['namacustomer']) ?></p>
+                                <p class="text-[10px] text-gray-500 mt-0.5"><?= htmlspecialchars($warn['nama_kost']) ?> - Kmr <?= htmlspecialchars($warn['nomor_kamar']) ?></p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <?php if ($warn['sisa_hari'] == 0): ?>
+                                    <span class="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-bold animate-pulse">HARI INI</span>
+                                <?php else: ?>
+                                    <span class="bg-orange-100 text-orange-800 border border-orange-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                                        <?= $warn['sisa_hari'] ?> Hari (<?= date('d M', strtotime($warn['habissewa'])) ?>)
+                                    </span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                <a href="perpanjang.php?id=<?= $warn['id_customer'] ?>" class="inline-block bg-black hover:bg-gray-800 text-yellow-500 px-3 py-1.5 rounded text-[10px] font-bold shadow-sm">
+                                    Perpanjang
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php else: ?>
+                <div class="flex flex-col items-center justify-center p-8 h-full min-h-[150px]">
+                    <div class="bg-green-100 text-green-500 p-3 rounded-full mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <p class="font-bold text-gray-700">Situasi Aman!</p>
+                    <p class="text-xs text-gray-500 mt-1">Tidak ada jadwal sewa yang mendekati masa jatuh tempo.</p>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
-            <p class="text-sm font-semibold text-gray-500 mb-1">Kamar Kosong</p>
-            <p class="text-3xl font-black text-red-600"><?= $kamar_kosong ?> <span class="text-sm font-medium text-red-400">Pintu</span></p>
+
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+            <div class="bg-orange-500 px-5 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">Tagihan / Piutang</h3>
+                </div>
+                <span class="bg-orange-700 text-white text-xs font-bold px-2 py-0.5 rounded-full"><?= count($data_belum_lunas) ?></span>
+            </div>
+            
+            <div class="p-0 overflow-x-auto flex-1 bg-gray-50/50">
+                <?php if (!empty($data_belum_lunas)): ?>
+                <table class="w-full text-left border-collapse text-sm min-w-[450px]">
+                    <thead class="bg-gray-100 border-b border-gray-200">
+                        <tr>
+                            <th class="py-2 px-4 font-bold text-gray-700 text-xs">Customer (Kamar)</th>
+                            <th class="py-2 px-4 font-bold text-gray-700 text-xs text-right">Kekurangan (Rp)</th>
+                            <th class="py-2 px-4 font-bold text-gray-700 text-xs text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php foreach ($data_belum_lunas as $bl): 
+                            $tot_tagihan = $bl['jumlahtransaksi'] - $bl['diskontransaksi'] + $bl['jumlah_charge'];
+                            $krg_bayar = $tot_tagihan - $bl['jumlah_bayar'];
+                        ?>
+                        <tr class="hover:bg-orange-50 transition-colors">
+                            <td class="py-3 px-4">
+                                <p class="font-bold text-gray-800 leading-tight"><?= htmlspecialchars($bl['namacustomer']) ?></p>
+                                <p class="text-[10px] text-gray-500 mt-0.5"><?= htmlspecialchars($bl['nama_kost']) ?> - Kmr <?= htmlspecialchars($bl['nomor_kamar']) ?></p>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <p class="font-black text-red-600">- <?= number_format($krg_bayar, 0, ',', '.') ?></p>
+                                <p class="text-[9px] text-gray-400 font-semibold mt-0.5">Trx: #<?= $bl['id_transaksi'] ?></p>
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                <a href="keuangan.php?in_status=Belum+Lunas#section_pemasukan" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm">
+                                    Bayar
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php else: ?>
+                <div class="flex flex-col items-center justify-center p-8 h-full min-h-[150px]">
+                    <div class="bg-green-100 text-green-500 p-3 rounded-full mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <p class="font-bold text-gray-700">Lunas Semua!</p>
+                    <p class="text-xs text-gray-500 mt-1">Seluruh tagihan customer Anda telah dibayar lunas.</p>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="mb-4">
+        <h2 class="text-xl font-bold text-gray-800 border-b border-gray-200 pb-2">Status Properti Saat Ini</h2>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-center">
+            <p class="text-xs font-semibold text-gray-500 mb-1">Total Properti</p>
+            <p class="text-2xl font-black text-gray-800"><?= $tampil_total_kost ?> <span class="text-xs font-medium text-gray-400">Lokasi</span></p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-center">
+            <p class="text-xs font-semibold text-gray-500 mb-1">Kapasitas</p>
+            <p class="text-2xl font-black text-gray-800"><?= $total_kamar ?> <span class="text-xs font-medium text-gray-400">Pintu</span></p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-center">
+            <p class="text-xs font-semibold text-gray-500 mb-1 text-green-600">Terisi</p>
+            <p class="text-2xl font-black text-green-600"><?= $kamar_isi ?> <span class="text-xs font-medium text-gray-400">Pintu</span></p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-center">
+            <p class="text-xs font-semibold text-gray-500 mb-1 text-red-500">Kosong</p>
+            <p class="text-2xl font-black text-red-600"><?= $kamar_kosong ?> <span class="text-xs font-medium text-gray-400">Pintu</span></p>
         </div>
     </div>
 
@@ -198,143 +354,14 @@ $saldo_bersih = $total_pemasukan_riil - $total_pengeluaran;
         </div>
         
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2 flex flex-col justify-center">
-            <h3 class="w-full text-left font-bold text-gray-700 mb-4 border-b pb-2">Analisis Arus Kas Terkini</h3>
+            <h3 class="w-full text-left font-bold text-gray-700 mb-4 border-b pb-2">Analisis Arus Kas (<?= $bulan_ini_teks ?>)</h3>
             <div class="relative w-full h-[200px]">
                 <canvas id="cashflowChart"></canvas>
             </div>
         </div>
     </div>
 
-    <?php if (!empty($data_warning)): ?>
-    <div class="mb-10 bg-red-50 border border-red-200 rounded-xl overflow-hidden shadow-sm">
-        <div class="bg-red-500 px-6 py-4 flex items-center gap-3">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            <h3 class="text-lg font-bold text-white tracking-wide">PERHATIAN: Sewa Segera Berakhir</h3>
-        </div>
-        
-        <div class="p-6 overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[700px]">
-                <thead class="border-b border-red-200">
-                    <tr>
-                        <th class="py-2 px-2 text-sm font-bold text-red-800">Customer & Kontak</th>
-                        <th class="py-2 px-2 text-sm font-bold text-red-800">Properti</th>
-                        <th class="py-2 px-2 text-sm font-bold text-red-800">Sisa Waktu</th>
-                        <th class="py-2 px-2 text-sm font-bold text-red-800 text-center">Tindakan</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-red-100">
-                    <?php foreach ($data_warning as $warn): ?>
-                    <tr class="hover:bg-red-100 transition-colors">
-                        <td class="py-3 px-2">
-                            <p class="font-bold text-gray-800"><?= htmlspecialchars($warn['namacustomer']) ?></p>
-                            <p class="text-xs font-semibold text-red-600"><?= htmlspecialchars($warn['nohpcustomer']) ?></p>
-                        </td>
-                        <td class="py-3 px-2">
-                            <p class="font-semibold text-gray-700"><?= htmlspecialchars($warn['nama_kost']) ?></p>
-                            <p class="text-xs text-gray-600">Kamar <?= htmlspecialchars($warn['nomor_kamar']) ?> (<?= htmlspecialchars($warn['jenis_kamar']) ?>)</p>
-                        </td>
-                        <td class="py-3 px-2">
-                            <?php if ($warn['sisa_hari'] == 0): ?>
-                                <span class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">HARI INI</span>
-                            <?php else: ?>
-                                <span class="bg-orange-100 text-orange-800 border border-orange-300 px-2 py-1 rounded text-xs font-bold">
-                                    <?= $warn['sisa_hari'] ?> Hari Lagi (<?= date('d M Y', strtotime($warn['habissewa'])) ?>)
-                                </span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="py-3 px-2 text-center">
-                            <a href="perpanjang.php?id=<?= $warn['id_customer'] ?>" class="inline-block bg-black hover:bg-gray-800 text-yellow-500 px-4 py-2 rounded text-xs font-bold shadow-sm transition-transform hover:scale-105">
-                                + Perpanjang Sewa
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if (!empty($data_belum_lunas)): ?>
-    <div class="mb-10 bg-orange-50 border border-orange-200 rounded-xl overflow-hidden shadow-sm">
-        <div class="bg-orange-500 px-6 py-4 flex items-center gap-3">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <h3 class="text-lg font-bold text-white tracking-wide">PEMBERITAHUAN: Tagihan Belum Lunas</h3>
-        </div>
-        
-        <div class="p-6 overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[700px]">
-                <thead class="border-b border-orange-200">
-                    <tr>
-                        <th class="py-2 px-2 text-sm font-bold text-orange-800">Customer & Kontak</th>
-                        <th class="py-2 px-2 text-sm font-bold text-orange-800">Properti</th>
-                        <th class="py-2 px-2 text-sm font-bold text-orange-800 text-right">Kekurangan (Rp)</th>
-                        <th class="py-2 px-2 text-sm font-bold text-orange-800 text-center">Tindakan</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-orange-100">
-                    <?php foreach ($data_belum_lunas as $bl): 
-                        $tot_tagihan = $bl['jumlahtransaksi'] - $bl['diskontransaksi'] + $bl['jumlah_charge'];
-                        $krg_bayar = $tot_tagihan - $bl['jumlah_bayar'];
-                    ?>
-                    <tr class="hover:bg-orange-100 transition-colors">
-                        <td class="py-3 px-2">
-                            <p class="font-bold text-gray-800"><?= htmlspecialchars($bl['namacustomer']) ?></p>
-                            <p class="text-xs font-semibold text-orange-600"><?= htmlspecialchars($bl['nohpcustomer']) ?></p>
-                        </td>
-                        <td class="py-3 px-2">
-                            <p class="font-semibold text-gray-700"><?= htmlspecialchars($bl['nama_kost']) ?></p>
-                            <p class="text-xs text-gray-600">Kamar <?= htmlspecialchars($bl['nomor_kamar']) ?></p>
-                        </td>
-                        <td class="py-3 px-2 text-right">
-                            <p class="font-black text-red-600">- <?= number_format($krg_bayar, 0, ',', '.') ?></p>
-                            <p class="text-[10px] text-gray-500 font-semibold mt-0.5">Total Tagihan: <?= number_format($tot_tagihan, 0, ',', '.') ?></p>
-                        </td>
-                        <td class="py-3 px-2 text-center">
-                            <a href="keuangan.php?in_status=Belum+Lunas#section_pemasukan" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition-colors">
-                                Bayar di Keuangan
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <div class="mt-8 mb-6">
-        <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
-            <h2 class="text-xl font-bold text-gray-800">Ringkasan Arus Kas & Piutang</h2>
-            <a href="keuangan.php" class="text-sm text-blue-600 hover:underline font-semibold bg-blue-50 px-3 py-1 rounded-full">Buka Buku Besar &rarr;</a>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Kotak 1: Kas Riil -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100 border-l-4 border-l-green-500 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Kas Masuk (Riil)</p>
-                <p class="text-xl font-black text-green-600">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></p>
-            </div>
-            <!-- Kotak 2: Piutang -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-orange-100 border-l-4 border-l-orange-500 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Piutang (Belum Dibayar)</p>
-                <p class="text-xl font-black text-orange-500">Rp <?= number_format($total_piutang, 0, ',', '.') ?></p>
-            </div>
-            <!-- Kotak 3: Pengeluaran -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-red-100 border-l-4 border-l-red-500 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Pengeluaran</p>
-                <p class="text-xl font-black text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></p>
-            </div>
-            <!-- Kotak 4: Saldo -->
-            <div class="bg-gray-900 p-5 rounded-xl shadow-md border border-gray-800 flex flex-col justify-center">
-                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Saldo Bersih Kas</p>
-                <p class="text-xl font-black <?= $saldo_bersih >= 0 ? 'text-yellow-500' : 'text-red-500' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></p>
-            </div>
-        </div>
-    </div>
-
 </div>
-<!-- TUTUP WRAPPER PADDING BOTTOM -->
-
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const kmrIsi = <?= $kamar_isi ?>;
