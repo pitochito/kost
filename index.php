@@ -3,12 +3,13 @@ require 'koneksi.php';
 require 'header.php';
 
 // ==============================================================================
-// 1. PROSES POST: TAGIHAN RUTIN (INPUT / EDIT / BAYAR)
+// 1. PROSES POST: TAGIHAN RUTIN (INPUT / EDIT / BAYAR / SYNC)
 // ==============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aksi_tagihan'])) {
     $aksi = $_POST['aksi_tagihan'];
     $id_user_aktif = $_SESSION['user_id'] ?? 1;
 
+    // --- AKSI: SIMPAN/EDIT/BAYAR MANUAL ---
     if ($aksi === 'simpan_tagihan') {
         $id_kost_tagihan = (int)$_POST['id_kost'];
         $jenis = $_POST['jenis_tagihan'];
@@ -20,7 +21,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aksi_tagihan'])) {
         $tahun = $_POST['tahun_tagihan'];
         $catat_pengeluaran = isset($_POST['catat_pengeluaran']) ? true : false;
 
-        // Cek apakah data bulan ini sudah ada
         $cek = $koneksi->prepare("SELECT * FROM table_tagihan_rutin WHERE id_kost=? AND jenis_tagihan=? AND bulan_tagihan=? AND tahun_tagihan=?");
         $cek->execute([$id_kost_tagihan, $jenis, $bulan, $tahun]);
         $tag = $cek->fetch(PDO::FETCH_ASSOC);
@@ -32,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aksi_tagihan'])) {
             $koneksi->beginTransaction();
 
             if ($id_ada) {
-                // Cegah edit jika di database sebenarnya sudah lunas
                 if ($status_sebelumnya !== 'Lunas') {
                     $tgl_db = ($status_bayar === 'Lunas') ? $tanggal_bayar : null;
                     $upd = $koneksi->prepare("UPDATE table_tagihan_rutin SET nominal=?, status_bayar=?, tanggal_bayar=? WHERE id_tagihan=?");
@@ -44,12 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aksi_tagihan'])) {
                 $ins->execute([$id_kost_tagihan, $jenis, $bulan, $tahun, $nominal, $status_bayar, $tgl_db]);
             }
 
-            // CROSS-CHECK: Jika diset Lunas DAN Checkbox Catat Pengeluaran dicentang
             if ($status_bayar === 'Lunas' && $status_sebelumnya === 'Belum Bayar') {
                 if ($catat_pengeluaran) {
                     $nama_pengeluaran = "Bayar tagihan " . strtolower($jenis) . " bulan " . $bulan . "/" . $tahun;
-                    
-                    // PERBAIKAN: Sesuaikan dengan kategori di table_pengeluaran database asli
                     $jenis_pengeluaran = 'Rutin';
                     $kategori = ($jenis === 'PDAM') ? 'Air' : 'Internet'; 
                     
@@ -66,8 +62,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aksi_tagihan'])) {
 
         } catch (Exception $e) {
             $koneksi->rollBack();
-            // Handle error silently
         }
+    } 
+    // --- AKSI: SINKRONISASI MASSAL ---
+    elseif ($aksi === 'sync_tagihan') {
+        $bulan = str_pad($_POST['bulan_tagihan'], 2, '0', STR_PAD_LEFT);
+        $tahun = $_POST['tahun_tagihan'];
+        $count_sync = 0;
+
+        $stmt_sync = $koneksi->prepare("
+            SELECT id_kost, kategoripengeluaran, SUM(jumlahpengeluaran) as total_nominal, MAX(tanggalpengeluaran) as tgl_bayar 
+            FROM table_pengeluaran 
+            WHERE MONTH(tanggalpengeluaran) = ? AND YEAR(tanggalpengeluaran) = ? 
+            AND kategoripengeluaran IN ('Air', 'Internet')
+            GROUP BY id_kost, kategoripengeluaran
+        ");
+        $stmt_sync->execute([$bulan, $tahun]);
+        $data_sync = $stmt_sync->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($data_sync as $ds) {
+            $jenis_tagihan = ($ds['kategoripengeluaran'] === 'Air') ? 'PDAM' : 'IndiHome';
+            
+            $cek_tag = $koneksi->prepare("SELECT id_tagihan FROM table_tagihan_rutin WHERE id_kost=? AND jenis_tagihan=? AND bulan_tagihan=? AND tahun_tagihan=?");
+            $cek_tag->execute([$ds['id_kost'], $jenis_tagihan, $bulan, $tahun]);
+            
+            if (!$cek_tag->fetchColumn()) {
+                $ins_sync = $koneksi->prepare("INSERT INTO table_tagihan_rutin (id_kost, jenis_tagihan, bulan_tagihan, tahun_tagihan, nominal, status_bayar, tanggal_bayar) VALUES (?, ?, ?, ?, ?, 'Lunas', ?)");
+                $ins_sync->execute([$ds['id_kost'], $jenis_tagihan, $bulan, $tahun, $ds['total_nominal'], $ds['tgl_bayar']]);
+                $count_sync++;
+            }
+        }
+
+        if ($count_sync > 0) {
+            echo "<script>window.location.href='index.php?bln_tagihan=$bulan&thn_tagihan=$tahun&pesan=sync_sukses';</script>";
+        } else {
+            echo "<script>window.location.href='index.php?bln_tagihan=$bulan&thn_tagihan=$tahun&pesan=sync_kosong';</script>";
+        }
+        exit;
     }
 }
 
@@ -99,7 +130,6 @@ if (!empty($expired_data)) {
     }
 }
 
-// AMBIL DATA USER AKTIF
 $stmt_user = $koneksi->prepare("SELECT username FROM table_user WHERE id = ?");
 $stmt_user->execute([$_SESSION['user_id'] ?? 1]);
 $user_aktif = $stmt_user->fetchColumn() ?: 'Admin';
@@ -217,9 +247,10 @@ $nama_bulan_arr = [
 ];
 $bulan_ini_teks = $nama_bulan_arr[date('m')] . ' ' . date('Y');
 
-// 8. QUERY DATA KOST UNTUK TAGIHAN RUTIN (DENGAN FILTER BULAN)
+// 8. QUERY DATA KOST UNTUK TAGIHAN RUTIN
 $bln_tagihan = $_GET['bln_tagihan'] ?? date('m');
 $thn_tagihan = $_GET['thn_tagihan'] ?? date('Y');
+$bln_pad = str_pad($bln_tagihan, 2, '0', STR_PAD_LEFT);
 
 $query_tagihan = "SELECT id_kost, nama_kost, no_pdam, no_indihome FROM table_kost WHERE (no_pdam IS NOT NULL AND no_pdam != '') OR (no_indihome IS NOT NULL AND no_indihome != '')";
 if (!empty($filter_kost)) {
@@ -231,12 +262,28 @@ if (!empty($filter_kost)) {
 }
 $data_kost_tagihan = $stmt_tagihan->fetchAll(PDO::FETCH_ASSOC);
 
+// Ambil riwayat tagihan bulan ini
 $stmt_rutin = $koneksi->prepare("SELECT * FROM table_tagihan_rutin WHERE bulan_tagihan=? AND tahun_tagihan=?");
-$stmt_rutin->execute([$bln_tagihan, $thn_tagihan]);
+$stmt_rutin->execute([$bln_pad, $thn_tagihan]);
 $rutin_db = $stmt_rutin->fetchAll(PDO::FETCH_ASSOC);
 $map_tagihan = [];
 foreach ($rutin_db as $r) {
     $map_tagihan[$r['id_kost']][$r['jenis_tagihan']] = $r;
+}
+
+// AMBIL DATA DARI BUKU PENGELUARAN UNTUK KROSCEK
+$stmt_pengeluaran = $koneksi->prepare("
+    SELECT id_kost, kategoripengeluaran, SUM(jumlahpengeluaran) as total_nominal, MAX(tanggalpengeluaran) as tgl_bayar 
+    FROM table_pengeluaran 
+    WHERE MONTH(tanggalpengeluaran) = ? AND YEAR(tanggalpengeluaran) = ? 
+    AND kategoripengeluaran IN ('Air', 'Internet')
+    GROUP BY id_kost, kategoripengeluaran
+");
+$stmt_pengeluaran->execute([$bln_pad, $thn_tagihan]);
+$map_pengeluaran = [];
+foreach ($stmt_pengeluaran->fetchAll(PDO::FETCH_ASSOC) as $out) {
+    $jns = ($out['kategoripengeluaran'] === 'Air') ? 'PDAM' : 'IndiHome';
+    $map_pengeluaran[$out['id_kost']][$jns] = $out;
 }
 ?>
 
@@ -249,6 +296,10 @@ foreach ($rutin_db as $r) {
             <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded shadow-sm font-semibold">Nominal tagihan properti berhasil dicatat/diperbarui.</div>
         <?php elseif($_GET['pesan'] == 'tagihan_lunas'): ?>
             <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm font-semibold">Pembayaran berhasil diproses sesuai kriteria kroscek Anda.</div>
+        <?php elseif($_GET['pesan'] == 'sync_sukses'): ?>
+            <div class="bg-emerald-100 border-l-4 border-emerald-500 text-emerald-800 p-4 mb-6 rounded shadow-sm font-semibold">Sinkronisasi Berhasil! Data pengeluaran ditemukan dan telah diinput otomatis ke tagihan rutin.</div>
+        <?php elseif($_GET['pesan'] == 'sync_kosong'): ?>
+            <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 rounded shadow-sm font-semibold">Sinkronisasi Gagal: Data pengeluaran untuk tagihan ini belum diinput. Silahkan lakukan input manual.</div>
         <?php endif; ?>
     <?php endif; ?>
 
@@ -260,7 +311,7 @@ foreach ($rutin_db as $r) {
         
         <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
             <form action="index.php" method="GET" class="w-full sm:w-auto">
-                <input type="hidden" name="bln_tagihan" value="<?= htmlspecialchars($bln_tagihan) ?>">
+                <input type="hidden" name="bln_tagihan" value="<?= htmlspecialchars($bln_pad) ?>">
                 <input type="hidden" name="thn_tagihan" value="<?= htmlspecialchars($thn_tagihan) ?>">
                 <select name="filter_kost" onchange="this.form.submit()" class="block w-full sm:w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm font-semibold text-gray-700 bg-white shadow-sm cursor-pointer transition-colors hover:bg-gray-50">
                     <option value="">Semua Lokasi (Global)</option>
@@ -320,19 +371,24 @@ foreach ($rutin_db as $r) {
                     <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     <h3 class="text-xs font-bold text-white tracking-wide uppercase">Tagihan Rutin</h3>
                 </div>
-                <form action="index.php" method="GET" class="flex gap-1 items-center">
-                    <input type="hidden" name="filter_kost" value="<?= htmlspecialchars($filter_kost) ?>">
-                    <select name="bln_tagihan" onchange="this.form.submit()" class="text-xs rounded px-1.5 py-0.5 text-gray-800 font-bold bg-white/90 border-0 focus:ring-0 cursor-pointer">
-                        <?php foreach($nama_bulan_arr as $num => $name): ?>
-                            <option value="<?= $num ?>" <?= $bln_tagihan == $num ? 'selected' : '' ?>><?= substr($name,0,3) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="thn_tagihan" onchange="this.form.submit()" class="text-xs rounded px-1.5 py-0.5 text-gray-800 font-bold bg-white/90 border-0 focus:ring-0 cursor-pointer">
-                        <?php for($y = 2023; $y <= date('Y')+1; $y++): ?>
-                            <option value="<?= $y ?>" <?= $thn_tagihan == $y ? 'selected' : '' ?>><?= $y ?></option>
-                        <?php endfor; ?>
-                    </select>
-                </form>
+                <div class="flex gap-1 items-center">
+                    <button type="button" onclick="jalankanSync()" class="p-1 bg-white/20 text-white rounded hover:bg-white/30" title="Sinkronkan dengan Buku Pengeluaran">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </button>
+                    <form action="index.php" method="GET" class="flex gap-1 items-center">
+                        <input type="hidden" name="filter_kost" value="<?= htmlspecialchars($filter_kost) ?>">
+                        <select name="bln_tagihan" onchange="this.form.submit()" class="text-xs rounded px-1.5 py-0.5 text-gray-800 font-bold bg-white/90 border-0 focus:ring-0 cursor-pointer">
+                            <?php foreach($nama_bulan_arr as $num => $name): ?>
+                                <option value="<?= $num ?>" <?= $bln_pad == $num ? 'selected' : '' ?>><?= substr($name,0,3) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select name="thn_tagihan" onchange="this.form.submit()" class="text-xs rounded px-1.5 py-0.5 text-gray-800 font-bold bg-white/90 border-0 focus:ring-0 cursor-pointer">
+                            <?php for($y = 2023; $y <= date('Y')+1; $y++): ?>
+                                <option value="<?= $y ?>" <?= $thn_tagihan == $y ? 'selected' : '' ?>><?= $y ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </form>
+                </div>
             </div>
             
             <div class="p-0 overflow-y-auto flex-1 bg-gray-50/50 max-h-[300px]">
@@ -344,24 +400,32 @@ foreach ($rutin_db as $r) {
                                 
                                 <?php if(!empty($tagihan['no_pdam'])): 
                                     $pdam = $map_tagihan[$tagihan['id_kost']]['PDAM'] ?? null;
+                                    $pdam_exp_nom = $map_pengeluaran[$tagihan['id_kost']]['PDAM']['total_nominal'] ?? 0;
+                                    $pdam_exp_tgl = $map_pengeluaran[$tagihan['id_kost']]['PDAM']['tgl_bayar'] ?? '';
                                 ?>
                                 <div class="flex justify-between items-center mb-2 bg-white p-2.5 rounded border border-gray-200 shadow-sm">
                                     <div>
                                         <p class="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Air / PDAM</p>
-                                        <?php if(!$pdam): ?>
-                                            <p class="text-xs font-semibold text-gray-400 italic">Belum Diinput</p>
-                                        <?php else: ?>
+                                        <?php if($pdam): ?>
                                             <p class="text-sm font-black text-gray-800">Rp <?= number_format($pdam['nominal'], 0, ',', '.') ?></p>
+                                        <?php elseif($pdam_exp_nom > 0): ?>
+                                            <p class="text-sm font-black text-gray-800">Rp <?= number_format($pdam_exp_nom, 0, ',', '.') ?></p>
+                                        <?php else: ?>
+                                            <p class="text-xs font-semibold text-gray-400 italic">Belum Diinput</p>
                                         <?php endif; ?>
                                     </div>
                                     <div class="flex gap-1 flex-wrap justify-end">
-                                        <?php if(!$pdam): ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '', false)" class="px-3 py-1 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
-                                        <?php elseif($pdam['status_bayar'] === 'Lunas'): ?>
-                                            <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider text-center block w-full">Lunas Tgl <br><?= date('d/m', strtotime($pdam['tanggal_bayar'])) ?></span>
+                                        <?php if($pdam): ?>
+                                            <?php if($pdam['status_bayar'] === 'Lunas'): ?>
+                                                <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider text-center block w-full">Lunas Tgl <br><?= date('d/m', strtotime($pdam['tanggal_bayar'])) ?></span>
+                                            <?php else: ?>
+                                                <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>, false)" class="px-2 py-1 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
+                                                <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>, true)" class="px-3 py-1 bg-green-600 text-white hover:bg-green-700 rounded text-[10px] font-bold shadow-sm transition-colors">Bayar</button>
+                                            <?php endif; ?>
+                                        <?php elseif($pdam_exp_nom > 0): ?>
+                                            <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider text-center block w-full">Lunas Tgl <br><?= date('d/m', strtotime($pdam_exp_tgl)) ?></span>
                                         <?php else: ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>, false)" class="px-2 py-1 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $pdam['nominal'] ?>, true)" class="px-3 py-1 bg-green-600 text-white hover:bg-green-700 rounded text-[10px] font-bold shadow-sm transition-colors">Bayar</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'PDAM', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '', false)" class="px-3 py-1 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -369,24 +433,32 @@ foreach ($rutin_db as $r) {
 
                                 <?php if(!empty($tagihan['no_indihome'])): 
                                     $indihome = $map_tagihan[$tagihan['id_kost']]['IndiHome'] ?? null;
+                                    $indi_exp_nom = $map_pengeluaran[$tagihan['id_kost']]['IndiHome']['total_nominal'] ?? 0;
+                                    $indi_exp_tgl = $map_pengeluaran[$tagihan['id_kost']]['IndiHome']['tgl_bayar'] ?? '';
                                 ?>
                                 <div class="flex justify-between items-center bg-white p-2.5 rounded border border-gray-200 shadow-sm">
                                     <div>
                                         <p class="text-[10px] font-bold text-red-500 uppercase tracking-wider">Internet / IndiHome</p>
-                                        <?php if(!$indihome): ?>
-                                            <p class="text-xs font-semibold text-gray-400 italic">Belum Diinput</p>
-                                        <?php else: ?>
+                                        <?php if($indihome): ?>
                                             <p class="text-sm font-black text-gray-800">Rp <?= number_format($indihome['nominal'], 0, ',', '.') ?></p>
+                                        <?php elseif($indi_exp_nom > 0): ?>
+                                            <p class="text-sm font-black text-gray-800">Rp <?= number_format($indi_exp_nom, 0, ',', '.') ?></p>
+                                        <?php else: ?>
+                                            <p class="text-xs font-semibold text-gray-400 italic">Belum Diinput</p>
                                         <?php endif; ?>
                                     </div>
                                     <div class="flex gap-1 flex-wrap justify-end">
-                                        <?php if(!$indihome): ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '', false)" class="px-3 py-1 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
-                                        <?php elseif($indihome['status_bayar'] === 'Lunas'): ?>
-                                            <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider text-center block w-full">Lunas Tgl <br><?= date('d/m', strtotime($indihome['tanggal_bayar'])) ?></span>
+                                        <?php if($indihome): ?>
+                                            <?php if($indihome['status_bayar'] === 'Lunas'): ?>
+                                                <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider text-center block w-full">Lunas Tgl <br><?= date('d/m', strtotime($indihome['tanggal_bayar'])) ?></span>
+                                            <?php else: ?>
+                                                <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>, false)" class="px-2 py-1 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
+                                                <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>, true)" class="px-3 py-1 bg-green-600 text-white hover:bg-green-700 rounded text-[10px] font-bold shadow-sm transition-colors">Bayar</button>
+                                            <?php endif; ?>
+                                        <?php elseif($indi_exp_nom > 0): ?>
+                                            <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider text-center block w-full">Lunas Tgl <br><?= date('d/m', strtotime($indi_exp_tgl)) ?></span>
                                         <?php else: ?>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>, false)" class="px-2 py-1 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded text-[10px] font-bold transition-colors">Edit</button>
-                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', <?= $indihome['nominal'] ?>, true)" class="px-3 py-1 bg-green-600 text-white hover:bg-green-700 rounded text-[10px] font-bold shadow-sm transition-colors">Bayar</button>
+                                            <button onclick="bukaModalTagihan(<?= $tagihan['id_kost'] ?>, 'IndiHome', '<?= htmlspecialchars(addslashes($tagihan['nama_kost'])) ?>', '', false)" class="px-3 py-1 bg-gray-800 text-white hover:bg-black rounded text-[10px] font-bold shadow-sm transition-colors">Input</button>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -558,6 +630,12 @@ foreach ($rutin_db as $r) {
 
 </div>
 
+<form id="form_sync_tagihan" action="index.php" method="POST" class="hidden">
+    <input type="hidden" name="aksi_tagihan" value="sync_tagihan">
+    <input type="hidden" name="bulan_tagihan" value="<?= htmlspecialchars($bln_pad) ?>">
+    <input type="hidden" name="tahun_tagihan" value="<?= htmlspecialchars($thn_tagihan) ?>">
+</form>
+
 <div id="modal_tagihan" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
         <div class="bg-blue-600 px-6 py-4 flex justify-between items-center">
@@ -606,7 +684,7 @@ foreach ($rutin_db as $r) {
                 
                 <div class="mt-3 flex items-start gap-2">
                     <input type="checkbox" name="catat_pengeluaran" id="catat_pengeluaran" value="1" checked class="mt-0.5">
-                    <label for="catat_pengeluaran" class="text-[10px] text-green-800 leading-tight">
+                    <label for="catat_pengeluaran" id="label_catat_pengeluaran" class="text-[10px] text-green-800 leading-tight">
                         <strong>Otomatis catat pengeluaran ke Buku Besar.</strong><br>
                         <span class="text-red-600 font-semibold">(Hapus centang ini jika Anda sudah pernah menginputnya secara manual di menu Keuangan, agar saldo tidak berkurang 2 kali).</span>
                     </label>
@@ -622,8 +700,14 @@ foreach ($rutin_db as $r) {
 </div>
 
 <script>
-    const globalBulanTagihan = '<?= $bln_tagihan ?>';
+    const globalBulanTagihan = '<?= $bln_pad ?>';
     const globalTahunTagihan = '<?= $thn_tagihan ?>';
+
+    function jalankanSync() {
+        if(confirm(`Konfirmasi Sinkronisasi:\n\nSistem akan menarik data pembayaran 'Air' dan 'Internet' dari Buku Pengeluaran bulan ${globalBulanTagihan}/${globalTahunTagihan} lalu memasukannya otomatis ke panel tagihan ini sebagai 'Lunas'.\n\nLanjutkan?`)) {
+            document.getElementById('form_sync_tagihan').submit();
+        }
+    }
 
     function bukaModalTagihan(idKost, jenis, namaKost, currentNominal, setLunas) {
         document.getElementById('modal_id_kost').value = idKost;
@@ -677,7 +761,7 @@ foreach ($rutin_db as $r) {
             const dicatat = document.getElementById('catat_pengeluaran').checked;
             let pesanEkstra = dicatat 
                 ? "Sistem akan OTOMATIS mencatat ini sebagai Pengeluaran Operasional di Buku Besar." 
-                : "Sistem TIDAK AKAN mencatat ini ke Buku Besar (hanya mengubah status menjadi Lunas).";
+                : "Sistem TIDAK AKAN mencatat ini ke Buku Besar (karena centang dihilangkan / data telah dikroscek).";
 
             return confirm(`KONFIRMASI PELUNASAN:\n\nAnda mengatur tagihan ${jenis} (Periode: ${bln} ${thn}) sebesar Rp ${nominal} menjadi LUNAS pada tanggal ${tglBayar}.\n\n${pesanEkstra}\n\nLanjutkan?`);
         } else {
