@@ -206,26 +206,47 @@ $rekap_pengeluaran = $stmt_list_out->fetchAll(PDO::FETCH_ASSOC);
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 print-grid-cols-2 gap-4 mb-8 md:mb-10">
-            <div class="border-2 border-gray-200 rounded-lg p-4 md:p-5">
-                <h3 class="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 md:mb-4 border-b pb-2">Ringkasan Arus Kas & Piutang</h3>
-                <div class="flex justify-between text-xs md:text-sm mb-2">
-                    <span class="font-semibold text-gray-600">Total Tagihan (Omset)</span>
-                    <span class="font-bold text-gray-800">Rp <?= number_format($total_pendapatan, 0, ',', '.') ?></span>
+            <div class="border-2 border-gray-200 rounded-lg p-4 md:p-5 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b pb-2">Ringkasan Keuangan</h3>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between text-xs md:text-sm mb-1">
+                            <span class="font-semibold text-gray-600">Total Omset (Tagihan)</span>
+                            <span class="font-bold text-gray-800">Rp <?= number_format($total_pendapatan, 0, ',', '.') ?></span>
+                        </div>
+                        
+                        <?php if ($total_piutang > 0): ?>
+                            <div class="bg-orange-50 border border-orange-200 p-2 md:p-2.5 rounded mt-1.5 print-border">
+                                <div class="flex justify-between items-center text-[11px] md:text-xs">
+                                    <span class="font-bold text-orange-800 flex items-center gap-1 uppercase tracking-wider">
+                                        ⚠️ Piutang (Wajib Ditagih)
+                                    </span>
+                                    <span class="font-black text-orange-600 text-sm md:text-base">Rp <?= number_format($total_piutang, 0, ',', '.') ?></span>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div class="flex justify-between text-[11px] md:text-xs mt-1">
+                                <span class="font-semibold text-gray-500">Piutang / Tunggakan</span>
+                                <span class="font-bold text-green-600">Rp 0 (Lunas Semua)</span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="border-t border-dashed border-gray-300 pt-3 mb-2">
+                        <div class="flex justify-between text-xs md:text-sm mb-1.5">
+                            <span class="font-semibold text-gray-600">Uang Tunai Diterima</span>
+                            <span class="font-bold text-green-600">+ Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></span>
+                        </div>
+                        <div class="flex justify-between text-xs md:text-sm mb-1">
+                            <span class="font-semibold text-gray-600">Total Pengeluaran</span>
+                            <span class="font-bold text-red-600">- Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></span>
+                        </div>
+                    </div>
                 </div>
-                <div class="flex justify-between text-xs md:text-sm mb-2">
-                    <span class="font-semibold text-gray-600">Kas Masuk (Riil)</span>
-                    <span class="font-bold text-green-600">Rp <?= number_format($total_pemasukan_riil, 0, ',', '.') ?></span>
-                </div>
-                <div class="flex justify-between text-xs md:text-sm mb-2">
-                    <span class="font-semibold text-gray-600">Piutang (Belum Bayar)</span>
-                    <span class="font-bold text-orange-500">Rp <?= number_format($total_piutang, 0, ',', '.') ?></span>
-                </div>
-                <div class="flex justify-between text-xs md:text-sm mb-3">
-                    <span class="font-semibold text-gray-600">Total Pengeluaran</span>
-                    <span class="font-bold text-red-600">Rp <?= number_format($total_pengeluaran, 0, ',', '.') ?></span>
-                </div>
-                <div class="flex justify-between border-t border-gray-200 pt-2 mt-2">
-                    <span class="font-black text-gray-800 text-base md:text-lg uppercase">Saldo Bersih Kas</span>
+
+                <div class="flex justify-between items-center border-t-2 border-gray-800 pt-3 mt-2 bg-gray-50 p-2 rounded print-border">
+                    <span class="font-black text-gray-800 text-xs md:text-sm uppercase tracking-wider">Saldo Bersih (Kas)</span>
                     <span class="font-black text-base md:text-lg <?= $saldo_bersih >= 0 ? 'text-blue-700' : 'text-red-600' ?>">Rp <?= number_format($saldo_bersih, 0, ',', '.') ?></span>
                 </div>
             </div>
