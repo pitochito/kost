@@ -62,7 +62,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_customer = $_POST['id_customer'] ?? '';
     $id_kamar = $_POST['id_kamar'] ?? '';
     $tanggaltransaksi = $_POST['tanggaltransaksi'];
-    $namatransaksi = trim($_POST['namatransaksi']);
+    
+    // Logika Tangkap Keterangan Transaksi
+    $namatransaksi_select = $_POST['namatransaksi_select'] ?? '';
+    if ($namatransaksi_select === 'Lainnya') {
+        $namatransaksi = trim($_POST['namatransaksi_lainnya']);
+    } else {
+        $namatransaksi = trim($namatransaksi_select);
+    }
+
     $mulaisewa = $_POST['mulaisewa'];
     $habissewa = $_POST['habissewa'];
     
@@ -165,9 +173,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
+            <?php 
+                // Cek opsi default untuk dropdown
+                $opsi_standar = ['Koreksi Transaksi Sewa', 'Perpanjangan Sewa', 'Sewa Baru'];
+                $is_lainnya = !in_array($edit_data['namatransaksi'], $opsi_standar) && !empty($edit_data['namatransaksi']);
+                $selected_dropdown = $is_lainnya ? 'Lainnya' : $edit_data['namatransaksi'];
+            ?>
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Keterangan Transaksi *</label>
-                <input type="text" id="namatransaksi" name="namatransaksi" value="<?= htmlspecialchars($edit_data['namatransaksi']) ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                <select id="namatransaksi_select" name="namatransaksi_select" class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" required onchange="toggleKeteranganLainnya()">
+                    <option value="Koreksi Transaksi Sewa" <?= $selected_dropdown == 'Koreksi Transaksi Sewa' ? 'selected' : '' ?>>Koreksi Transaksi Sewa</option>
+                    <option value="Perpanjangan Sewa" <?= $selected_dropdown == 'Perpanjangan Sewa' ? 'selected' : '' ?>>Perpanjangan Sewa</option>
+                    <option value="Sewa Baru" <?= $selected_dropdown == 'Sewa Baru' ? 'selected' : '' ?>>Sewa Baru</option>
+                    <option value="Lainnya" <?= $selected_dropdown == 'Lainnya' ? 'selected' : '' ?>>Lainnya (Ketik Manual)</option>
+                </select>
+                <input type="text" id="namatransaksi_lainnya" name="namatransaksi_lainnya" value="<?= $is_lainnya ? htmlspecialchars($edit_data['namatransaksi']) : '' ?>" placeholder="Ketik keterangan transaksi di sini..." class="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-green-500 mt-3 <?= $is_lainnya ? '' : 'hidden' ?>">
             </div>
 
             <div class="bg-blue-50 border border-blue-200 p-5 rounded-lg space-y-4">
@@ -216,6 +236,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 const modeEditTransJS = <?= json_encode($mode_edit) ?>;
 
+function toggleKeteranganLainnya() {
+    const select = document.getElementById('namatransaksi_select');
+    const inputLainnya = document.getElementById('namatransaksi_lainnya');
+    
+    if (select.value === 'Lainnya') {
+        inputLainnya.classList.remove('hidden');
+        inputLainnya.setAttribute('required', 'true');
+    } else {
+        inputLainnya.classList.add('hidden');
+        inputLainnya.removeAttribute('required');
+    }
+}
+
+// Inisialisasi saat load (khusus untuk Mode Edit)
+document.addEventListener("DOMContentLoaded", function() {
+    toggleKeteranganLainnya();
+});
+
 function konfirmasiTransaksi() {
     const custSelect = document.getElementById('id_customer');
     const kamarSelect = document.getElementById('id_kamar');
@@ -227,6 +265,12 @@ function konfirmasiTransaksi() {
 
     const customer = custSelect.options[custSelect.selectedIndex].text;
     const kamar = kamarSelect.options[kamarSelect.selectedIndex].text;
+    
+    // Logika Keterangan Transaksi untuk Alert
+    let keterangan = document.getElementById('namatransaksi_select').value;
+    if (keterangan === 'Lainnya') {
+        keterangan = document.getElementById('namatransaksi_lainnya').value;
+    }
     
     const dasar = parseInt(document.getElementById('jumlahtransaksi').value) || 0;
     const diskon = parseInt(document.getElementById('diskontransaksi').value) || 0;
@@ -243,7 +287,8 @@ function konfirmasiTransaksi() {
     const pesan = `KONFIRMASI ${aksi} TRANSAKSI MANUAL:\n\n` +
                   `• Penyewa : ${customer}\n` +
                   `• Alokasi : ${kamar}\n` +
-                  `• Periode : ${tglMulai} s/d ${tglHabis}\n\n` +
+                  `• Periode : ${tglMulai} s/d ${tglHabis}\n` +
+                  `• Keterangan : ${keterangan}\n\n` +
                   `[FINANSIAL]\n` +
                   `• Total Tagihan : Rp ${totalTagihan.toLocaleString('id-ID')}\n` +
                   `• Total Dibayar : Rp ${bayar.toLocaleString('id-ID')}\n` +
