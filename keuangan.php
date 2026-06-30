@@ -87,6 +87,7 @@ $sum_tipe = $_GET['sum_tipe'] ?? 'bulan';
 $sum_bulan = $_GET['sum_bulan'] ?? date('Y-m');
 $sum_start = $_GET['sum_start'] ?? date('Y-m-01');
 $sum_end = $_GET['sum_end'] ?? date('Y-m-t');
+$sum_kost = $_GET['sum_kost'] ?? ''; // Parameter filter kost baru
 
 if ($sum_tipe === 'bulan') {
     $date_start_sum = $sum_bulan . '-01';
@@ -96,24 +97,41 @@ if ($sum_tipe === 'bulan') {
     $date_end_sum = $sum_end;
 }
 
-// UPDATE: Menggunakan tanggaltransaksi (Accrual)
+// Persiapan query dinamis
+$where_sum_in = "t.tanggaltransaksi BETWEEN ? AND ?";
+$params_sum_in = [$date_start_sum, $date_end_sum];
+
+$where_sum_out = "tanggalpengeluaran BETWEEN ? AND ?";
+$params_sum_out = [$date_start_sum, $date_end_sum];
+
+// Jika filter kost dipilih, tambahkan ke query
+if (!empty($sum_kost)) {
+    $where_sum_in .= " AND k.id_kost = ?";
+    $params_sum_in[] = $sum_kost;
+    
+    $where_sum_out .= " AND id_kost = ?";
+    $params_sum_out[] = $sum_kost;
+}
+
+// UPDATE: Menggunakan tanggaltransaksi & JOIN ke kamar untuk filter kost
 $stmt_sum_in = $koneksi->prepare("
     SELECT 
-        SUM(jumlahtransaksi - diskontransaksi + jumlah_charge) as total_tagihan,
-        SUM(jumlah_bayar) as uang_diterima
-    FROM table_transaksi 
-    WHERE tanggaltransaksi BETWEEN ? AND ?
+        SUM(t.jumlahtransaksi - t.diskontransaksi + t.jumlah_charge) as total_tagihan,
+        SUM(t.jumlah_bayar) as uang_diterima
+    FROM table_transaksi t
+    JOIN table_kamar k ON t.id_kamar = k.id_kamar
+    WHERE $where_sum_in
 ");
-$stmt_sum_in->execute([$date_start_sum, $date_end_sum]);
+$stmt_sum_in->execute($params_sum_in);
 $hasil_sum = $stmt_sum_in->fetch(PDO::FETCH_ASSOC);
 
 $total_pendapatan_sum = $hasil_sum['total_tagihan'] ?: 0;
 $total_pemasukan_riil_sum = $hasil_sum['uang_diterima'] ?: 0;
 $total_piutang_sum = $total_pendapatan_sum - $total_pemasukan_riil_sum;
 
-
-$stmt_sum_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran WHERE tanggalpengeluaran BETWEEN ? AND ?");
-$stmt_sum_out->execute([$date_start_sum, $date_end_sum]);
+// Ambil pengeluaran dengan filter kost
+$stmt_sum_out = $koneksi->prepare("SELECT SUM(jumlahpengeluaran) FROM table_pengeluaran WHERE $where_sum_out");
+$stmt_sum_out->execute($params_sum_out);
 $total_pengeluaran_sum = $stmt_sum_out->fetchColumn() ?: 0;
 
 $saldo_bersih_sum = $total_pemasukan_riil_sum - $total_pengeluaran_sum;
@@ -244,7 +262,7 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
             <h3 class="font-bold text-gray-800 text-lg">Ringkasan Arus Kas & Piutang</h3>
         </div>
         
-        <form action="keuangan.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <form action="keuangan.php" method="GET" class="flex flex-col md:flex-row flex-wrap gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
             <?= hiddenParamsHtml('sum_') ?>
             <input type="hidden" name="filter_sum" value="1">
             
@@ -270,6 +288,16 @@ $show_out = isset($_GET['filter_out']) || isset($_GET['page_out']);
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sampai</label>
                     <input type="date" name="sum_end" value="<?= $sum_end ?>" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
                 </div>
+            </div>
+
+            <div class="w-full md:w-auto flex-1 min-w-[200px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Lokasi Kost</label>
+                <select name="sum_kost" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="">Semua Lokasi</option>
+                    <?php foreach($list_kost_db as $k): ?>
+                        <option value="<?= $k['id_kost'] ?>" <?= $sum_kost == $k['id_kost'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kost']) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             
             <button type="submit" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors">Lihat Ringkasan</button>

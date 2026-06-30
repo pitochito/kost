@@ -31,7 +31,7 @@ if (!$cust) {
 }
 ?>
 
-<div class="max-w-4xl mx-auto">
+<div class="pb-32 max-w-4xl mx-auto">
     <div class="mb-6 flex justify-between items-center">
         <button onclick="history.back()" class="text-sm font-semibold text-gray-500 hover:text-black">&larr; Kembali</button>
         <a href="form_customer.php?edit=<?= $cust['id_customer'] ?>" class="border border-yellow-500 text-yellow-600 hover:bg-yellow-50 px-4 py-2 rounded text-sm font-bold transition-colors">
