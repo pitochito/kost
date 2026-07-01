@@ -111,11 +111,33 @@ for ($i = 1; $i <= 12; $i++) {
 
 <style>
     @media print {
-        body { background-color: white !important; }
+        /* 1. Sembunyikan Navigasi & Sidebar bawaan header.php */
+        aside, header, #sidebar, #sidebar-overlay { 
+            display: none !important; 
+        }
+        
+        /* 2. Lepaskan batasan layout agar tabel diprint penuh (tidak terpotong scroll) */
+        body, html, main, .flex-1 { 
+            display: block !important;
+            height: auto !important; 
+            overflow: visible !important; 
+            background: white !important;
+            position: static !important;
+        }
+        
+        /* 3. Hilangkan padding/margin bawaan dari workspace aplikasi */
+        main {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        
+        /* 4. Aturan styling khusus cetakan Laporan */
         .no-print { display: none !important; }
         .print-border { border: 1px solid #e5e7eb !important; }
         .print-shadow-none { box-shadow: none !important; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        
+        /* 5. Setelan Kertas */
         @page { margin: 1cm; size: A4 landscape; }
     }
 </style>
