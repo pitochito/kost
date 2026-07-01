@@ -18,7 +18,9 @@ if (isset($_GET['hapus'])) {
     $id_hapus = $_GET['hapus'];
     $stmt_hapus = $koneksi->prepare("DELETE FROM table_pengeluaran WHERE id_pengeluaran = ?");
     $stmt_hapus->execute([$id_hapus]);
-    header("Location: keuangan.php?pesan=sukses_hapus");
+    
+    // SOLUSI: Gunakan JavaScript Redirect
+    echo "<script>window.location.href='keuangan.php?pesan=sukses_hapus';</script>";
     exit;
 }
 
@@ -30,7 +32,9 @@ if (isset($_GET['hapus_transaksi'])) {
     $id_trans_hapus = $_GET['hapus_transaksi'];
     $stmt_hapus_trans = $koneksi->prepare("DELETE FROM table_transaksi WHERE id_transaksi = ?");
     $stmt_hapus_trans->execute([$id_trans_hapus]);
-    header("Location: keuangan.php?pesan=sukses_hapus_transaksi");
+    
+    // SOLUSI: Gunakan JavaScript Redirect
+    echo "<script>window.location.href='keuangan.php?pesan=sukses_hapus_transaksi';</script>";
     exit;
 }
 
@@ -53,7 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_bayar'])) {
         $stmt_upd = $koneksi->prepare("UPDATE table_transaksi SET jumlah_bayar = ?, status_bayar = ?, tanggal_bayar = ?, id = ? WHERE id_transaksi = ?");
         $stmt_upd->execute([$total_bayar_baru, $status_baru, $tanggal_bayar_baru, $id_user_aktif, $id_trans_bayar]);
 
-        header("Location: keuangan.php?pesan=sukses_bayar");
+        // SOLUSI: Gunakan JavaScript Redirect
+        echo "<script>window.location.href='keuangan.php?pesan=sukses_bayar';</script>";
         exit;
     }
 }
