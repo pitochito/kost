@@ -111,33 +111,41 @@ for ($i = 1; $i <= 12; $i++) {
 
 <style>
     @media print {
-        /* 1. Sembunyikan Navigasi & Sidebar bawaan header.php */
-        aside, header, #sidebar, #sidebar-overlay { 
+        /* 1. Sembunyikan elemen UI yang tidak perlu dicetak */
+        aside, header, #sidebar, #sidebar-overlay, .no-print { 
             display: none !important; 
         }
         
-        /* 2. Lepaskan batasan layout agar tabel diprint penuh (tidak terpotong scroll) */
-        body, html, main, .flex-1 { 
+        /* 2. Bongkar batasan flexbox agar halaman bisa memanjang */
+        body, html, main, .flex-1, .pb-32 { 
             display: block !important;
             height: auto !important; 
             overflow: visible !important; 
             background: white !important;
             position: static !important;
-        }
-        
-        /* 3. Hilangkan padding/margin bawaan dari workspace aplikasi */
-        main {
             padding: 0 !important;
             margin: 0 !important;
+            width: 100% !important;
         }
         
-        /* 4. Aturan styling khusus cetakan Laporan */
-        .no-print { display: none !important; }
-        .print-border { border: 1px solid #e5e7eb !important; }
+        /* 3. PAKSA SKALA TABEL: Abaikan batasan 800px dan paskan ke kertas */
+        table {
+            min-width: 100% !important;
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+
+        /* 4. Skalakan ukuran font khusus di kertas agar 6 kolom tidak berdesakan */
+        th, td {
+            font-size: 11px !important;
+            padding: 8px 4px !important;
+        }
+        
+        .print-border { border: 1px solid #cbd5e1 !important; border-radius: 0 !important; }
         .print-shadow-none { box-shadow: none !important; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         
-        /* 5. Setelan Kertas */
+        /* 5. Setelan Kertas Standar */
         @page { margin: 1cm; size: A4 landscape; }
     }
 </style>
@@ -156,7 +164,6 @@ for ($i = 1; $i <= 12; $i++) {
         </div>
     </div>
 
-    <!-- FILTER PENCARIAN -->
     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 no-print">
         <form action="laporan_tahunan.php" method="GET" class="flex flex-col md:flex-row gap-4 items-end flex-wrap">
             <div class="w-full md:w-48">
@@ -186,10 +193,8 @@ for ($i = 1; $i <= 12; $i++) {
         </form>
     </div>
 
-    <!-- KERTAS CETAKAN -->
     <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden print-shadow-none print-border">
         
-        <!-- HEADER LAPORAN -->
         <div class="p-6 md:p-8 border-b-4 border-gray-900 flex justify-between items-center bg-gray-50">
             <div>
                 <h1 class="text-2xl md:text-3xl font-black text-gray-900 uppercase tracking-tight">LAPORAN TAHUNAN</h1>
@@ -202,7 +207,7 @@ for ($i = 1; $i <= 12; $i++) {
         </div>
 
         <div class="overflow-x-auto p-0 md:p-4">
-            <table class="w-full text-left border-collapse min-w-[800px]">
+            <table class="w-full text-left border-collapse min-w-[800px] print:min-w-0">
                 <thead>
                     <tr class="bg-gray-100 border-b-2 border-gray-300">
                         <th class="py-4 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Bulan</th>
